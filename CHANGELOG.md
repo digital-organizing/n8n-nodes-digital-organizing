@@ -13,5 +13,7 @@ line is maintained by `release-it` as part of `npm run release`.
     supporters, subscriptions, subscription plans and search, a webhook endpoint
     resource, and a trigger node that manages webhook endpoints together with
     their event subscriptions.
-  - **Payrexx**, **Cura Fundraising** — credentials plus a generic Custom API
-    Call resource; typed resources still to come.
+  - **Cura Fundraising** — token authentication and the inbox endpoint, which
+    is the whole documented inbound interface.
+  - **Payrexx** — credential plus a generic Custom API Call resource; typed
+    resources still to come.

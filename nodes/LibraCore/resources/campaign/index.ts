@@ -1,5 +1,5 @@
 import type { INodeProperties } from 'n8n-workflow';
-import { mergeCustomFields } from '../../shared/mergeCustomFields';
+import { mergeJsonBody } from '../../../shared/mergeJsonBody';
 
 const show = { resource: ['campaign'] };
 
@@ -27,7 +27,7 @@ export const campaignDescription: INodeProperties[] = [
 						url: '=/{{$parameter.endpoint}}',
 					},
 					send: {
-						preSend: [mergeCustomFields],
+						preSend: [mergeJsonBody('customFields', 'Custom Fields')],
 					},
 				},
 			},

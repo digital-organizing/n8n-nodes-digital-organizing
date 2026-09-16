@@ -9,12 +9,13 @@ in one installable package instead of one package per tool.
 | **Payrexx**          | Scaffold + custom API call                                                 | `Payrexx API`                    |
 | **RaiseNow**         | Implemented (payments, supporters, subscriptions, plans, search, webhooks) | `RaiseNow API`                   |
 | **RaiseNow Trigger** | Implemented (webhook endpoint + event subscriptions)                       | `RaiseNow API`                   |
-| **Cura Fundraising** | Scaffold + custom API call                                                 | `Cura Fundraising API`           |
+| **Cura Fundraising** | Implemented (inbox contact submissions)                                    | `Cura Fundraising API`           |
 | **LibraCore**        | Campaign submissions + custom API call                                     | `LibraCore Service Platform API` |
 
-The scaffolded nodes already authenticate and can call any endpoint through their
-**Custom API Call** resource. Typed resources get added on top of that, one at a
-time — see [Adding a node](#adding-a-node).
+Payrexx is still a scaffold: it authenticates and can call any endpoint through its
+**Custom API Call** resource, but has no typed resources yet. Every other node keeps
+that resource too, for the long tail of endpoints not worth modelling — see
+[Adding a resource to an existing node](#adding-a-resource-to-an-existing-node).
 
 ## Installation
 
@@ -52,6 +53,7 @@ credentials/                    one <Service>Api.credentials.ts per service
 icons/                          <service>.svg + <service>.dark.svg, 24x24, currentColor
 nodes/
   shared/customApiCall.ts       generic "Custom API Call" resource used by every node
+  shared/mergeJsonBody.ts       preSend factory folding a JSON parameter into the body
   DoCounter/
     DoCounter.node.ts           node description: resources, credentials, requestDefaults
     shared/descriptions.ts      properties reused across resources of this node
@@ -106,7 +108,8 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
 - **Payrexx**: request signing (HMAC-SHA256 → `ApiSignature`) is implemented in the
   credential but not yet verified against the live API; nested parameters
   (`key[sub]=value`) are not serialised yet.
-- **Cura**: API surface unknown; base URL and key are per instance.
+- **Cura**: the API is one inbound endpoint, so there is nothing to read back —
+  a workflow cannot look a contact up, only submit one.
 - **RaiseNow**: webhook signature verification is not implemented, and the operations
   are built from the spec but not yet exercised against a live account.
 - **LibraCore**: only the campaign submission endpoint is modelled — that is all our
@@ -158,6 +161,30 @@ would go stale if it were hardcoded here.
 The endpoint can carry an HMAC key so RaiseNow signs deliveries. The node stores the
 key on the endpoint but does **not** verify incoming signatures — the algorithm is not
 in the public spec. Treat the webhook URL as the secret until that is implemented.
+
+## Cura notes
+
+Cura's interface is deliberately small: one inbound endpoint,
+`POST /api/latest/inbox/receiver/`, which drops a JSON payload into the Cura inbox
+("Postfach"). Cura then creates a contact from it, or extends an existing one it
+matches — on membership number first, then on a person match. Authentication is a
+static token issued by Cura support, sent as `Authorization: token <ID>`.
+
+- **Nothing is required.** Every documented key is optional, so the node has no
+  required fields on _Contact → Send_. Send what you have.
+- **Unknown keys are kept, not rejected.** They show up in the inbox but do not
+  affect processing unless Cura support has built a rule for them. That is what
+  _Additional Payload_ is for.
+- **Create Donation Letter** sets `create_invoice` and needs a _Campaign ID_. It only
+  works if the campaign has both "QR-Rechnung automatisch erstellen…" and
+  "Angedrucktes Datum darf automatisch verändert werden" enabled in Cura.
+- **Account → Who Am I** is the identification echo Cura documents; the credential
+  test uses the same endpoint, which is why the credential holds the organisation
+  slug.
+
+There is no read API — a workflow can submit to Cura but cannot query it. Cura also
+offers an _outgoing_ interface, but its scope and endpoints are defined per
+organisation and would need to be built as a separate integration.
 
 ## LibraCore notes
 

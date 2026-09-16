@@ -7,16 +7,18 @@ import type {
 } from 'n8n-workflow';
 
 /**
- * TODO: fill in once we have the Cura Fundraising API documentation for our
- * instance. Base URL is per customer, so it is a credential field rather than a
- * constant in the node.
+ * Cura authenticates with a static token in the Authorization header, in the
+ * form `token <ID>`. The token is issued by Cura support, not self-service.
+ *
+ * https://www.cura-fundraising.ch/support/systemintegration-und-schnittstellen/daten-via-schnittstelle/
  */
 export class CuraApi implements ICredentialType {
 	name = 'curaApi';
 
 	displayName = 'Cura Fundraising API';
 
-	documentationUrl = 'https://www.curasoftware.ch/';
+	documentationUrl =
+		'https://www.cura-fundraising.ch/support/systemintegration-und-schnittstellen/daten-via-schnittstelle/';
 
 	icon: Icon = { light: 'file:../icons/cura.svg', dark: 'file:../icons/cura.dark.svg' };
 
@@ -25,18 +27,27 @@ export class CuraApi implements ICredentialType {
 			displayName: 'API Base URL',
 			name: 'baseUrl',
 			type: 'string',
-			default: '',
+			default: 'https://my.cura-fundraising.ch',
 			required: true,
-			placeholder: 'https://cura.example.ch/api',
-			description: 'Base URL of the Cura instance, without a trailing slash',
+			description: 'Change only if Cura hosts your instance somewhere else',
 		},
 		{
-			displayName: 'API Key',
-			name: 'apiKey',
+			displayName: 'API Token',
+			name: 'apiToken',
 			type: 'string',
 			typeOptions: { password: true },
 			default: '',
 			required: true,
+			description: 'The auth token issued by Cura support',
+		},
+		{
+			displayName: 'Organisation Slug',
+			name: 'organisationSlug',
+			type: 'string',
+			default: '',
+			required: true,
+			placeholder: 'my-organisation',
+			description: 'Identifies the organisation. Used by the connection test.',
 		},
 	];
 
@@ -44,17 +55,20 @@ export class CuraApi implements ICredentialType {
 		type: 'generic',
 		properties: {
 			headers: {
-				Authorization: '=Bearer {{$credentials.apiKey}}',
+				Authorization: '=token {{$credentials.apiToken}}',
 			},
 		},
 	};
 
-	// TODO: point at a cheap read-only endpoint once the API surface is confirmed.
+	/** The identification echo Cura documents for exactly this purpose. */
 	test: ICredentialTestRequest = {
 		request: {
 			baseURL: '={{$credentials.baseUrl}}',
-			url: '/',
+			url: '/api/latest/who-am-i/',
 			method: 'GET',
+			qs: {
+				org: '={{$credentials.organisationSlug}}',
+			},
 		},
 	};
 }

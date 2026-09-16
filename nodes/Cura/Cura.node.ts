@@ -1,4 +1,6 @@
 import { NodeConnectionTypes, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
+import { accountDescription } from './resources/account';
+import { contactDescription } from './resources/contact';
 import { customDescription } from './resources/custom';
 
 export class Cura implements INodeType {
@@ -9,7 +11,7 @@ export class Cura implements INodeType {
 		group: ['input'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Work with contacts, donations and mailings in Cura Fundraising',
+		description: 'Send contacts and donation data to Cura Fundraising',
 		defaults: {
 			name: 'Cura Fundraising',
 		},
@@ -36,14 +38,23 @@ export class Cura implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				options: [
-					// TODO: add typed resources (Contact, Donation, Mailing).
+					{
+						name: 'Account',
+						value: 'account',
+					},
+					{
+						name: 'Contact',
+						value: 'contact',
+					},
 					{
 						name: 'Custom API Call',
 						value: 'custom',
 					},
 				],
-				default: 'custom',
+				default: 'contact',
 			},
+			...contactDescription,
+			...accountDescription,
 			...customDescription,
 		],
 	};

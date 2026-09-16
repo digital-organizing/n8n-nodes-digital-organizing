@@ -10,6 +10,7 @@
     "payrexx",
     "raisenow",
     "cura",
+    "libracore",
     "fundraising"
   ],
   "publishConfig": {
@@ -50,13 +51,15 @@
       "dist/credentials/DoCounterApi.credentials.js",
       "dist/credentials/PayrexxApi.credentials.js",
       "dist/credentials/RaiseNowApi.credentials.js",
-      "dist/credentials/CuraApi.credentials.js"
+      "dist/credentials/CuraApi.credentials.js",
+      "dist/credentials/LibraCoreApi.credentials.js"
     ],
     "nodes": [
       "dist/nodes/DoCounter/DoCounter.node.js",
       "dist/nodes/Payrexx/Payrexx.node.js",
       "dist/nodes/RaiseNow/RaiseNow.node.js",
-      "dist/nodes/Cura/Cura.node.js"
+      "dist/nodes/Cura/Cura.node.js",
+      "dist/nodes/LibraCore/LibraCore.node.js"
     ]
   },
   "devDependencies": {

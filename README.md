@@ -3,12 +3,13 @@
 n8n community nodes for the tools [Digital Organizing](https://digitalorganizing.ch) works with, bundled
 in one installable package instead of one package per tool.
 
-| Node                 | Status                                 | Credential             |
-| -------------------- | -------------------------------------- | ---------------------- |
-| **Do Counter**       | Implemented (counter, campaign, entry) | `Do Counter API`       |
-| **Payrexx**          | Scaffold + custom API call             | `Payrexx API`          |
-| **RaiseNow**         | Scaffold + custom API call             | `RaiseNow API`         |
-| **Cura Fundraising** | Scaffold + custom API call             | `Cura Fundraising API` |
+| Node                 | Status                                 | Credential                       |
+| -------------------- | -------------------------------------- | -------------------------------- |
+| **Do Counter**       | Implemented (counter, campaign, entry) | `Do Counter API`                 |
+| **Payrexx**          | Scaffold + custom API call             | `Payrexx API`                    |
+| **RaiseNow**         | Scaffold + custom API call             | `RaiseNow API`                   |
+| **Cura Fundraising** | Scaffold + custom API call             | `Cura Fundraising API`           |
+| **LibraCore**        | Campaign submissions + custom API call | `LibraCore Service Platform API` |
 
 The scaffolded nodes already authenticate and can call any endpoint through their
 **Custom API Call** resource. Typed resources get added on top of that, one at a
@@ -55,6 +56,7 @@ nodes/
     shared/descriptions.ts      properties reused across resources of this node
     resources/<resource>/       one folder per resource, exporting its operations
   Payrexx/  RaiseNow/  Cura/    same shape
+  LibraCore/                    shared/mergeCustomFields.ts is a preSend action
 ```
 
 Nodes are written in n8n's **declarative style**: operations describe their HTTP
@@ -105,8 +107,40 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
 - **RaiseNow**: auth scheme and base URL are assumed (bearer token) — confirm against
   the RaiseNow docs.
 - **Cura**: API surface unknown; base URL and key are per instance.
+- **LibraCore**: only the campaign submission endpoint is modelled — that is all our
+  Django integration used. Tenants may name the contact fields differently; the
+  `Custom Fields` JSON parameter covers the difference until we model more.
 - **Do Counter**: the standalone `n8n-nodes-do-counter` package is superseded by this
   one and should be deprecated on npm once instances have migrated.
+
+## LibraCore notes
+
+The LibraCore service platform authenticates through Auth0 with a client-credentials
+grant: the credential exchanges client ID and secret for a bearer token scoped to an
+audience, and n8n refreshes it automatically when a request comes back unauthorised.
+This mirrors `mv-mietzinsrechner/mv_api/services.py`, which is where the integration
+came from.
+
+Base URL, audience and Auth0 domain are per customer and per environment. They take
+this shape — the real values for each tenant live in that project's credentials, not
+here:
+
+| Setting      | Value                                                         |
+| ------------ | ------------------------------------------------------------- |
+| Base URL     | `https://services-api-staging.example.ch/api/v1/yourtenant`   |
+| Audience     | same as the base URL (leave the field empty to default to it) |
+| Auth0 domain | `example.eu.auth0.com`                                        |
+
+The credential test hits Auth0 rather than the service API, because the platform has
+no read-only endpoint to probe without writing data — so a green test proves the
+client credentials and audience are right, not that the base URL is.
+
+The **Campaign → Create** operation posts to `{base URL}/campaign` (the endpoint path
+is editable) with the contact and consent fields the platform accepts:
+`email`, `first_name`, `last_name`, `anrede`, `zip_code`, `quelle`, `nl_abo`,
+`einwilligung_timestamp`, `einwilligung_ip`, `einwilligung_url`. Campaign-specific
+keys — the `mzr_*` fields of the Mietzinsrechner, for instance — go into the
+**Custom Fields** JSON parameter and are merged into the body as-is.
 
 ## License
 

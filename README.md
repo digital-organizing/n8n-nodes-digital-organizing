@@ -6,6 +6,7 @@ in one installable package instead of one package per tool.
 | Node                 | Status                                                                     | Credential                       |
 | -------------------- | -------------------------------------------------------------------------- | -------------------------------- |
 | **Do Counter**       | Implemented (counter, campaign, entry)                                     | `Do Counter API`                 |
+| **Flyertool**        | Implemented (contacts, assignments, addresses)                             | `Flyertool API`                  |
 | **Payrexx**          | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)    | `Payrexx API`                    |
 | **Payrexx Trigger**  | Implemented (static webhook)                                               | –                                |
 | **RaiseNow**         | Implemented (payments, supporters, subscriptions, plans, search, webhooks) | `RaiseNow API`                   |
@@ -115,8 +116,42 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
 - **LibraCore**: only the campaign submission endpoint is modelled — that is all our
   Django integration used. Tenants may name the contact fields differently; the
   `Custom Fields` JSON parameter covers the difference until we model more.
+- **Flyertool**: no trigger node yet. Campaigns can post to a webhook when a contact
+  signs up, which would make a static webhook trigger straightforward to add.
 - **Do Counter**: the standalone `n8n-nodes-do-counter` package is superseded by this
   one and should be deprecated on npm once instances have migrated.
+
+## Flyertool notes
+
+Built against the django-ninja API of `flyertool-web`, which serves interactive docs
+at `/api/docs` and an OpenAPI schema at `/api/openapi.json` on your own instance.
+
+The credential takes the **root URL**, without `/api`, because the node talks to two
+routers: `/api/flyertool` for contacts and assignments, `/api/egwr` for addresses.
+
+- **A key carries a user's visibility.** Keys are created in the Django admin under
+  _API-Schlüssel_ and belong to a user; a key of a non-superuser only ever sees
+  contacts and assignments of campaigns that user owns. Anything outside them answers
+  404, so an empty result can mean the key is scoped too narrowly rather than that
+  nothing matched. Untick _Aktiv_ to revoke a key.
+- **Contacts have no create operation.** They come from the public signup form. The
+  API reads, updates and deletes them.
+- **Contacts are addressed by UUID**, the identifier the webhook, the export and the
+  success redirect already use. Assignments are addressed by their numeric ID.
+- **Updates are partial** — only the fields you add to _Update Fields_ are sent, and
+  only those change. _Form Fields_ and _UTM Parameters_ are the exception: they
+  replace the whole JSON object rather than merging into it.
+- **Resetting a delivery address** means sending an explicit `null`, which a
+  collection field cannot express. Put `{"delivery_address_id": null}` in _Additional
+  Fields_; the contact then falls back to its own address.
+- **Addresses are EGIDs** from the Swiss building register. Address → Search is how
+  you find one for a contact update, and it can take a campaign ID to apply that
+  campaign's address filters. Both address endpoints are public on the Flyertool side;
+  the node sends the key anyway, which does no harm.
+- **Lists are paginated** with `limit`/`offset` and answer `{"items": [...], "count": n}`.
+  The node unwraps `items`, and _Return All_ follows the pages.
+- Invalid payloads answer 422, and moving an assignment onto a cluster that is already
+  taken answers 409.
 
 ## Payrexx notes
 

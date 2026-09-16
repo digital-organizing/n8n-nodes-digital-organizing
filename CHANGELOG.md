@@ -15,5 +15,5 @@ line is maintained by `release-it` as part of `npm run release`.
     their event subscriptions.
   - **Cura Fundraising** — token authentication and the inbox endpoint, which
     is the whole documented inbound interface.
-  - **Payrexx** — credential plus a generic Custom API Call resource; typed
-    resources still to come.
+  - **Payrexx** — X-API-KEY authentication plus transactions, subscriptions, QR
+    codes, paylinks and invoices, and a static webhook trigger node.

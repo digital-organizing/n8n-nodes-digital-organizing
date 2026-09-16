@@ -1,5 +1,10 @@
 import { NodeConnectionTypes, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
 import { customDescription } from './resources/custom';
+import { invoiceDescription } from './resources/invoice';
+import { paylinkDescription } from './resources/paylink';
+import { qrCodeDescription } from './resources/qrCode';
+import { subscriptionDescription } from './resources/subscription';
+import { transactionDescription } from './resources/transaction';
 
 export class Payrexx implements INodeType {
 	description: INodeTypeDescription = {
@@ -9,7 +14,7 @@ export class Payrexx implements INodeType {
 		group: ['input'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Work with payments, gateways and subscriptions in Payrexx',
+		description: 'Work with transactions, subscriptions, paylinks and invoices in Payrexx',
 		defaults: {
 			name: 'Payrexx',
 		},
@@ -26,6 +31,7 @@ export class Payrexx implements INodeType {
 			baseURL: '={{$credentials.baseUrl}}',
 			headers: {
 				Accept: 'application/json',
+				'Content-Type': 'application/json',
 			},
 		},
 		properties: [
@@ -35,14 +41,38 @@ export class Payrexx implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				options: [
-					// TODO: add typed resources (Gateway, Transaction, Invoice, Subscription, Payment Link).
 					{
 						name: 'Custom API Call',
 						value: 'custom',
 					},
+					{
+						name: 'Invoice',
+						value: 'invoice',
+					},
+					{
+						name: 'Paylink',
+						value: 'paylink',
+					},
+					{
+						name: 'QR Code',
+						value: 'qrCode',
+					},
+					{
+						name: 'Subscription',
+						value: 'subscription',
+					},
+					{
+						name: 'Transaction',
+						value: 'transaction',
+					},
 				],
-				default: 'custom',
+				default: 'transaction',
 			},
+			...transactionDescription,
+			...subscriptionDescription,
+			...qrCodeDescription,
+			...paylinkDescription,
+			...invoiceDescription,
 			...customDescription,
 		],
 	};

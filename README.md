@@ -6,15 +6,15 @@ in one installable package instead of one package per tool.
 | Node                 | Status                                                                     | Credential                       |
 | -------------------- | -------------------------------------------------------------------------- | -------------------------------- |
 | **Do Counter**       | Implemented (counter, campaign, entry)                                     | `Do Counter API`                 |
-| **Payrexx**          | Scaffold + custom API call                                                 | `Payrexx API`                    |
+| **Payrexx**          | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)    | `Payrexx API`                    |
+| **Payrexx Trigger**  | Implemented (static webhook)                                               | –                                |
 | **RaiseNow**         | Implemented (payments, supporters, subscriptions, plans, search, webhooks) | `RaiseNow API`                   |
 | **RaiseNow Trigger** | Implemented (webhook endpoint + event subscriptions)                       | `RaiseNow API`                   |
 | **Cura Fundraising** | Implemented (inbox contact submissions)                                    | `Cura Fundraising API`           |
 | **LibraCore**        | Campaign submissions + custom API call                                     | `LibraCore Service Platform API` |
 
-Payrexx is still a scaffold: it authenticates and can call any endpoint through its
-**Custom API Call** resource, but has no typed resources yet. Every other node keeps
-that resource too, for the long tail of endpoints not worth modelling — see
+Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
+not worth modelling — see
 [Adding a resource to an existing node](#adding-a-resource-to-an-existing-node).
 
 ## Installation
@@ -60,6 +60,7 @@ nodes/
     resources/<resource>/       one folder per resource, exporting its operations
   Payrexx/  RaiseNow/  Cura/    same shape
   RaiseNowTrigger/              programmatic trigger: webhook lifecycle in webhookMethods
+  PayrexxTrigger/               static webhook trigger: no lifecycle, URL pasted by hand
   LibraCore/                    shared/mergeCustomFields.ts is a preSend action
 ```
 
@@ -105,9 +106,8 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
 
 ## Open items
 
-- **Payrexx**: request signing (HMAC-SHA256 → `ApiSignature`) is implemented in the
-  credential but not yet verified against the live API; nested parameters
-  (`key[sub]=value`) are not serialised yet.
+- **Payrexx**: the operations are built from the reference docs but not yet exercised
+  against a live instance. The trigger cannot register itself — see below.
 - **Cura**: the API is one inbound endpoint, so there is nothing to read back —
   a workflow cannot look a contact up, only submit one.
 - **RaiseNow**: webhook signature verification is not implemented, and the operations
@@ -117,6 +117,45 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
   `Custom Fields` JSON parameter covers the difference until we model more.
 - **Do Counter**: the standalone `n8n-nodes-do-counter` package is superseded by this
   one and should be deprecated on npm once instances have migrated.
+
+## Payrexx notes
+
+Built from <https://developers.payrexx.com/reference>, against API v1.16 — the
+version is part of the base URL and the credential lets you change it.
+
+Authentication uses the `X-API-KEY` header, which Payrexx recommends over its older
+`ApiSignature` HMAC scheme. Same secret, no signing. The instance name is a query
+parameter on every call, so the credential attaches it rather than every operation
+repeating it.
+
+Two naming traps in the API itself, kept as-is so requests match the docs:
+
+- A **paylink** is `/Invoice/`.
+- An **invoice** is `/Bill/`.
+
+Other things worth knowing:
+
+- **Amounts are in cents** everywhere.
+- **Intervals** — subscription payment interval, period, cancellation interval — are
+  PHP `DateInterval` strings: `P1M` monthly, `P1Y` yearly.
+- **Get Many transactions**: Payrexx documents its filters as a request body on a
+  `GET`. They are sent as query parameters, since a GET body is not reliably
+  forwarded and the query string is what Payrexx's own SDK builds.
+- **Invoice create** has a large nested payload. The common fields are modelled;
+  discounts, cash discounts, reminders, bank information and attachments go through
+  the _Additional Fields_ JSON parameter. The same applies to a paylink's contact
+  `fields` list.
+
+### The trigger node
+
+Payrexx has **no API for managing webhooks** — no create, no list, no delete. So the
+trigger registers nothing: it exposes a URL and you paste it into the Payrexx admin
+under Settings → Integrations → Webhooks. That also means n8n cannot tell Payrexx
+which events to send, so the _Transaction Statuses_ filter runs on this side, after
+delivery, and an unmatched delivery is acknowledged without starting the workflow.
+
+Status values are free text rather than a dropdown: the reference documents the
+webhook payload only by example, so a hardcoded list would be a guess.
 
 ## RaiseNow notes
 

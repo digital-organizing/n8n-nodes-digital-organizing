@@ -3,16 +3,17 @@
 n8n community nodes for the tools [Digital Organizing](https://digitalorganizing.ch) works with, bundled
 in one installable package instead of one package per tool.
 
-| Node                 | Status                                                                     | Credential                       |
-| -------------------- | -------------------------------------------------------------------------- | -------------------------------- |
-| **Do Counter**       | Implemented (counter, campaign, entry)                                     | `Do Counter API`                 |
-| **Flyertool**        | Implemented (contacts, assignments, addresses)                             | `Flyertool API`                  |
-| **Payrexx**          | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)    | `Payrexx API`                    |
-| **Payrexx Trigger**  | Implemented (static webhook)                                               | –                                |
-| **RaiseNow**         | Implemented (payments, supporters, subscriptions, plans, search, webhooks) | `RaiseNow API`                   |
-| **RaiseNow Trigger** | Implemented (webhook endpoint + event subscriptions)                       | `RaiseNow API`                   |
-| **Cura Fundraising** | Implemented (inbox contact submissions)                                    | `Cura Fundraising API`           |
-| **LibraCore**        | Campaign submissions + custom API call                                     | `LibraCore Service Platform API` |
+| Node                  | Status                                                                     | Credential                       |
+| --------------------- | -------------------------------------------------------------------------- | -------------------------------- |
+| **Do Counter**        | Implemented (counter, campaign, entry)                                     | `Do Counter API`                 |
+| **Flyertool**         | Implemented (contacts, assignments, addresses)                             | `Flyertool API`                  |
+| **Flyertool Trigger** | Implemented (static webhook)                                               | –                                |
+| **Payrexx**           | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)    | `Payrexx API`                    |
+| **Payrexx Trigger**   | Implemented (static webhook)                                               | –                                |
+| **RaiseNow**          | Implemented (payments, supporters, subscriptions, plans, search, webhooks) | `RaiseNow API`                   |
+| **RaiseNow Trigger**  | Implemented (webhook endpoint + event subscriptions)                       | `RaiseNow API`                   |
+| **Cura Fundraising**  | Implemented (inbox contact submissions)                                    | `Cura Fundraising API`           |
+| **LibraCore**         | Campaign submissions + custom API call                                     | `LibraCore Service Platform API` |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -116,8 +117,6 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
 - **LibraCore**: only the campaign submission endpoint is modelled — that is all our
   Django integration used. Tenants may name the contact fields differently; the
   `Custom Fields` JSON parameter covers the difference until we model more.
-- **Flyertool**: no trigger node yet. Campaigns can post to a webhook when a contact
-  signs up, which would make a static webhook trigger straightforward to add.
 - **Do Counter**: the standalone `n8n-nodes-do-counter` package is superseded by this
   one and should be deprecated on npm once instances have migrated.
 
@@ -152,6 +151,30 @@ routers: `/api/flyertool` for contacts and assignments, `/api/egwr` for addresse
   The node unwraps `items`, and _Return All_ follows the pages.
 - Invalid payloads answer 422, and moving an assignment onto a cluster that is already
   taken answers 409.
+
+### The trigger node
+
+A campaign notifies one URL when someone signs up — its **Webhook URL** field in the
+Flyertool admin. There is no API for setting that field, so the trigger registers
+nothing: paste its Production URL into the campaign.
+
+Things to know:
+
+- **One event only**, a completed signup, fired from both the standalone and the
+  embedded form. Nothing fires on update or delete.
+- **The URL is the only protection.** Flyertool sends no secret and no signature, so
+  treat the webhook URL as a credential.
+- **Deliveries are fire and forget.** Flyertool posts with a five second timeout and
+  swallows failures without retrying, so a missed delivery is simply lost. The node
+  therefore acknowledges every request, including ones its campaign filter rejects.
+- **The payload is flat and partial**: `uuid`, `first_name`, `last_name`, `email`,
+  `order`, `campaign` (the name, not the slug or ID), `address_id` (EGID), the address
+  parts, `fields` and `utm`. It carries no delivery address and no assignments —
+  follow the trigger with **Flyertool → Contact → Get** on the `uuid` for the full
+  record.
+- The **Campaigns** filter matches the `campaign` name. Usually you can leave it
+  empty, since each campaign has its own webhook URL; it earns its keep only when you
+  point several campaigns at the same workflow.
 
 ## Payrexx notes
 

@@ -64,7 +64,8 @@
       "dist/nodes/RaiseNowTrigger/RaiseNowTrigger.node.js",
       "dist/nodes/Cura/Cura.node.js",
       "dist/nodes/LibraCore/LibraCore.node.js",
-      "dist/nodes/Flyertool/Flyertool.node.js"
+      "dist/nodes/Flyertool/Flyertool.node.js",
+      "dist/nodes/FlyertoolTrigger/FlyertoolTrigger.node.js"
     ]
   },
   "devDependencies": {

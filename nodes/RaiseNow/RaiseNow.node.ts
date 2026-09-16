@@ -1,5 +1,11 @@
 import { NodeConnectionTypes, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
 import { customDescription } from './resources/custom';
+import { paymentDescription } from './resources/payment';
+import { searchDescription } from './resources/search';
+import { subscriptionDescription } from './resources/subscription';
+import { subscriptionPlanDescription } from './resources/subscriptionPlan';
+import { supporterDescription } from './resources/supporter';
+import { webhookDescription } from './resources/webhook';
 
 export class RaiseNow implements INodeType {
 	description: INodeTypeDescription = {
@@ -9,7 +15,7 @@ export class RaiseNow implements INodeType {
 		group: ['input'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Work with donations, donors and campaigns in RaiseNow',
+		description: 'Work with payments, supporters and subscriptions in the RaiseNow EPayment API',
 		defaults: {
 			name: 'RaiseNow',
 		},
@@ -36,14 +42,43 @@ export class RaiseNow implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				options: [
-					// TODO: add typed resources (Transaction, Donor, Campaign, Recurring Donation).
 					{
 						name: 'Custom API Call',
 						value: 'custom',
 					},
+					{
+						name: 'Payment',
+						value: 'payment',
+					},
+					{
+						name: 'Search',
+						value: 'search',
+					},
+					{
+						name: 'Subscription',
+						value: 'subscription',
+					},
+					{
+						name: 'Subscription Plan',
+						value: 'subscriptionPlan',
+					},
+					{
+						name: 'Supporter',
+						value: 'supporter',
+					},
+					{
+						name: 'Webhook',
+						value: 'webhook',
+					},
 				],
-				default: 'custom',
+				default: 'payment',
 			},
+			...paymentDescription,
+			...supporterDescription,
+			...subscriptionDescription,
+			...subscriptionPlanDescription,
+			...searchDescription,
+			...webhookDescription,
 			...customDescription,
 		],
 	};

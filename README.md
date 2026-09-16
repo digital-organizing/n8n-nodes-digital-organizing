@@ -3,13 +3,14 @@
 n8n community nodes for the tools [Digital Organizing](https://digitalorganizing.ch) works with, bundled
 in one installable package instead of one package per tool.
 
-| Node                 | Status                                 | Credential                       |
-| -------------------- | -------------------------------------- | -------------------------------- |
-| **Do Counter**       | Implemented (counter, campaign, entry) | `Do Counter API`                 |
-| **Payrexx**          | Scaffold + custom API call             | `Payrexx API`                    |
-| **RaiseNow**         | Scaffold + custom API call             | `RaiseNow API`                   |
-| **Cura Fundraising** | Scaffold + custom API call             | `Cura Fundraising API`           |
-| **LibraCore**        | Campaign submissions + custom API call | `LibraCore Service Platform API` |
+| Node                 | Status                                                                     | Credential                       |
+| -------------------- | -------------------------------------------------------------------------- | -------------------------------- |
+| **Do Counter**       | Implemented (counter, campaign, entry)                                     | `Do Counter API`                 |
+| **Payrexx**          | Scaffold + custom API call                                                 | `Payrexx API`                    |
+| **RaiseNow**         | Implemented (payments, supporters, subscriptions, plans, search, webhooks) | `RaiseNow API`                   |
+| **RaiseNow Trigger** | Implemented (webhook endpoint + event subscriptions)                       | `RaiseNow API`                   |
+| **Cura Fundraising** | Scaffold + custom API call                                                 | `Cura Fundraising API`           |
+| **LibraCore**        | Campaign submissions + custom API call                                     | `LibraCore Service Platform API` |
 
 The scaffolded nodes already authenticate and can call any endpoint through their
 **Custom API Call** resource. Typed resources get added on top of that, one at a
@@ -56,6 +57,7 @@ nodes/
     shared/descriptions.ts      properties reused across resources of this node
     resources/<resource>/       one folder per resource, exporting its operations
   Payrexx/  RaiseNow/  Cura/    same shape
+  RaiseNowTrigger/              programmatic trigger: webhook lifecycle in webhookMethods
   LibraCore/                    shared/mergeCustomFields.ts is a preSend action
 ```
 
@@ -104,14 +106,58 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
 - **Payrexx**: request signing (HMAC-SHA256 → `ApiSignature`) is implemented in the
   credential but not yet verified against the live API; nested parameters
   (`key[sub]=value`) are not serialised yet.
-- **RaiseNow**: auth scheme and base URL are assumed (bearer token) — confirm against
-  the RaiseNow docs.
 - **Cura**: API surface unknown; base URL and key are per instance.
+- **RaiseNow**: webhook signature verification is not implemented, and the operations
+  are built from the spec but not yet exercised against a live account.
 - **LibraCore**: only the campaign submission endpoint is modelled — that is all our
   Django integration used. Tenants may name the contact fields differently; the
   `Custom Fields` JSON parameter covers the difference until we model more.
 - **Do Counter**: the standalone `n8n-nodes-do-counter` package is superseded by this
   one and should be deprecated on npm once instances have migrated.
+
+## RaiseNow notes
+
+Built against the OpenAPI spec behind <https://docs.raisenow.com/api>
+(`https://assets.raisenow.io/specs/api-public.json`). Authentication is an OAuth2
+client-credentials grant against `/oauth2/token`; the credential exchanges client ID
+and secret for a JWT and n8n refreshes it when a request comes back unauthorised.
+
+Things worth knowing before wiring up a workflow:
+
+- **Amounts are in minor units.** `1000` means 10.00. Payment amounts are strings,
+  subscription amounts are integers — that is the API's own inconsistency, not ours.
+- **Payment → Initialize** is the entry point of a payment flow. For redirect-based
+  methods leave _Payment Information_ empty and follow the action returned in the
+  response; fill it in only when passing an instrument directly.
+- **Subscriptions need a payment source**, which you get from a payment run with
+  _Create Payment Source_ enabled.
+- **Recurring intervals** use a three-field day-of-month / month / weekday syntax:
+  `1 * *` is monthly on the 1st, `15 3,6,9,12 *` is quarterly on the 15th.
+- **Search** covers payment agreements, the one index the public API exposes. The
+  query object is passed through as-is in RaiseNow's own DSL.
+- **Get Many** operations page with `from` / `size`; _Return All_ follows the pages.
+
+### The trigger node
+
+RaiseNow delivers events in two steps, and the trigger manages both:
+
+1. a **webhook endpoint** (`/webhooks`) — just the URL registration, which on its own
+   receives nothing, and
+2. one **event subscription** per event (`/event-subscriptions`) pointing at that
+   endpoint.
+
+Activating the node looks for an endpoint already registered for this workflow's URL
+and reuses it, otherwise creates one, then creates any missing event subscriptions.
+Deactivating removes the subscriptions it created, and the endpoint too unless it was
+one it found rather than created.
+
+Event names are free text (`rnw.event.payment_gateway.payment.succeeded` and friends)
+rather than a dropdown — the list lives at <https://docs.raisenow.com/events> and
+would go stale if it were hardcoded here.
+
+The endpoint can carry an HMAC key so RaiseNow signs deliveries. The node stores the
+key on the endpoint but does **not** verify incoming signatures — the algorithm is not
+in the public spec. Treat the webhook URL as the secret until that is implemented.
 
 ## LibraCore notes
 

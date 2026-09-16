@@ -1,5 +1,5 @@
 import type { INodeProperties } from 'n8n-workflow';
-import { listOutput, listProperties } from '../../shared/descriptions';
+import { listOutput, offsetListProperties } from '../../../shared/pagination';
 
 const resource = 'assignment';
 const show = { resource: [resource] };
@@ -50,7 +50,7 @@ export const assignmentDescription: INodeProperties[] = [
 				action: 'Get many assignments',
 				routing: {
 					request: { method: 'GET', url: '/api/flyertool/assignments' },
-					...listOutput,
+					...listOutput('items'),
 				},
 			},
 			{
@@ -137,7 +137,7 @@ export const assignmentDescription: INodeProperties[] = [
 	},
 
 	// ─── Get Many ──────────────────────────────────────────────────────────────
-	...listProperties(resource),
+	...offsetListProperties(resource, 'items'),
 	{
 		displayName: 'Filters',
 		name: 'filters',

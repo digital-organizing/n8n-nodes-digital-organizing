@@ -10,6 +10,8 @@ line is maintained by `release-it` as part of `npm run release`.
   - **Flyertool** — API-key authentication plus contacts, cluster assignments
     and building-register address lookup, and a static webhook trigger for
     campaign signups.
+  - **Link Shortener** — API-key authentication plus short links, their open
+    graph metadata, and the domains and groups a key may use.
   - **LibraCore** — Auth0 client-credentials authentication and the campaign
     submission endpoint, ported from the mv-mietzinsrechner Django integration.
   - **RaiseNow** — OAuth2 client-credentials authentication plus payments,

@@ -8,6 +8,7 @@ in one installable package instead of one package per tool.
 | **Do Counter**        | Implemented (counter, campaign, entry)                                     | `Do Counter API`                 |
 | **Flyertool**         | Implemented (contacts, assignments, addresses)                             | `Flyertool API`                  |
 | **Flyertool Trigger** | Implemented (static webhook)                                               | –                                |
+| **Link Shortener**    | Implemented (links, domains, groups, identity)                             | `Link Shortener API`             |
 | **Payrexx**           | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)    | `Payrexx API`                    |
 | **Payrexx Trigger**   | Implemented (static webhook)                                               | –                                |
 | **RaiseNow**          | Implemented (payments, supporters, subscriptions, plans, search, webhooks) | `RaiseNow API`                   |
@@ -61,6 +62,7 @@ nodes/
     shared/descriptions.ts      properties reused across resources of this node
     resources/<resource>/       one folder per resource, exporting its operations
   Payrexx/  RaiseNow/  Cura/    same shape
+  shared/pagination.ts          limit/offset paging over an items or results envelope
   RaiseNowTrigger/              programmatic trigger: webhook lifecycle in webhookMethods
   PayrexxTrigger/               static webhook trigger: no lifecycle, URL pasted by hand
   LibraCore/                    shared/mergeCustomFields.ts is a preSend action
@@ -119,6 +121,40 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
   `Custom Fields` JSON parameter covers the difference until we model more.
 - **Do Counter**: the standalone `n8n-nodes-do-counter` package is superseded by this
   one and should be deprecated on npm once instances have migrated.
+
+## Link Shortener notes
+
+Built against the DRF API of `link-shortener`, which serves Swagger at
+`/api/v1/docs/`, Redoc at `/api/v1/redoc/` and an OpenAPI schema at
+`/api/v1/schema/` on your own instance.
+
+The credential takes the **root URL**, without `/api`, and sends the admin-issued
+key as `Authorization: Api-Key <key>`.
+
+- **A key carries its owner's groups.** It only sees links filed under groups the
+  owner belongs to, and can only create links on domains those groups may use.
+  Naming a domain or group outside that set is a validation error, not a 403.
+  Keys can be given an expiry, after which every request answers 401.
+- **Domain and group are referenced by name**, not by ID — `example.com` and the
+  group's name. Use the Domain and Group resources to discover what a key may use.
+- **Links are read-write, domains and groups are read-only** over the API.
+- **Slug and domain together must be unique.** A clash answers 400 with the message
+  on the slug field. Leaving the slug empty generates a random one; slugs are
+  lowercased before saving.
+- **Create scrapes the target by default.** _Fetch Metadata_ fills in any open graph
+  field you did not set yourself, and only applies when _Custom Tags_ is on. On
+  update the flag is ignored — use **Refresh Metadata** instead, which re-scrapes and
+  overwrites. It answers 502 when the target yields nothing.
+- **`og_image` and `og_video` file uploads are not exposed.** They are multipart
+  fields on the Django side; set `og_image_url` and `og_video_url` instead.
+- **Lists are paginated** with `limit`/`offset` and answer a DRF
+  `{"count": n, "results": [...]}` envelope. The node unwraps `results`, and
+  _Return All_ follows the pages.
+- **Identity → Who Am I** answers with the username, superuser flag, groups and
+  domains behind the key. The API documents it as its own smoke test, and the
+  credential test uses it.
+
+There is no trigger node: the app has no webhooks.
 
 ## Flyertool notes
 

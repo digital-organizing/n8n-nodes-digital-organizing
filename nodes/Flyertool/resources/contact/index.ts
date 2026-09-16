@@ -1,6 +1,6 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { mergeJsonBody } from '../../../shared/mergeJsonBody';
-import { listOutput, listProperties } from '../../shared/descriptions';
+import { listOutput, offsetListProperties } from '../../../shared/pagination';
 
 const resource = 'contact';
 const show = { resource: [resource] };
@@ -47,7 +47,7 @@ export const contactDescription: INodeProperties[] = [
 				action: 'Get many contacts',
 				routing: {
 					request: { method: 'GET', url: '/api/flyertool/contacts' },
-					...listOutput,
+					...listOutput('items'),
 				},
 			},
 			{
@@ -188,7 +188,7 @@ export const contactDescription: INodeProperties[] = [
 	},
 
 	// ─── Get Many ──────────────────────────────────────────────────────────────
-	...listProperties(resource),
+	...offsetListProperties(resource, 'items'),
 	{
 		displayName: 'Filters',
 		name: 'filters',

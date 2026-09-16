@@ -1,11 +1,13 @@
-import type { INodeProperties } from 'n8n-workflow';
+import type { INodePropertyRouting, INodeProperties } from 'n8n-workflow';
 
 /**
- * Flyertool lists are django-ninja paginated: `limit` and `offset` query
- * parameters in, `{"items": [...], "count": n}` back. Both the paginator and the
- * output extraction therefore have to know about `items`.
+ * Limit/offset pagination over a list response that wraps its rows in an
+ * envelope — `items` for django-ninja, `results` for Django REST Framework.
+ *
+ * Both halves need the envelope key: the paginator to know how many rows a page
+ * returned, and the output extraction to hand the workflow the rows themselves.
  */
-export function listProperties(resource: string): INodeProperties[] {
+export function offsetListProperties(resource: string, rootProperty: string): INodeProperties[] {
 	const show = { resource: [resource], operation: ['getAll'] };
 
 	return [
@@ -24,7 +26,7 @@ export function listProperties(resource: string): INodeProperties[] {
 							limitParameter: 'limit',
 							offsetParameter: 'offset',
 							pageSize: 100,
-							rootProperty: 'items',
+							rootProperty,
 							type: 'query',
 						},
 					},
@@ -45,14 +47,16 @@ export function listProperties(resource: string): INodeProperties[] {
 	];
 }
 
-/** Unwraps the `items` array of a paginated list response. */
-export const listOutput = {
-	output: {
-		postReceive: [
-			{
-				type: 'rootProperty' as const,
-				properties: { property: 'items' },
-			},
-		],
-	},
-};
+/** Spread into an operation's `routing` to unwrap the list envelope. */
+export function listOutput(rootProperty: string): Pick<INodePropertyRouting, 'output'> {
+	return {
+		output: {
+			postReceive: [
+				{
+					type: 'rootProperty',
+					properties: { property: rootProperty },
+				},
+			],
+		},
+	};
+}

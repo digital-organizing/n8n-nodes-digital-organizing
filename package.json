@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-digital-organizing",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "n8n community nodes for the tools Digital Organizing works with: Payrexx, RaiseNow, Cura Fundraising and our own Do Counter",
   "license": "MIT",
   "homepage": "https://github.com/digital-organizing/n8n-nodes-digital-organizing",

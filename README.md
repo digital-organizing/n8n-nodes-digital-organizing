@@ -3,18 +3,19 @@
 n8n community nodes for the tools [Digital Organizing](https://digitalorganizing.ch) works with, bundled
 in one installable package instead of one package per tool.
 
-| Node                  | Status                                                                     | Credential                       |
-| --------------------- | -------------------------------------------------------------------------- | -------------------------------- |
-| **Do Counter**        | Implemented (counter, campaign, entry)                                     | `Do Counter API`                 |
-| **Flyertool**         | Implemented (contacts, assignments, addresses)                             | `Flyertool API`                  |
-| **Flyertool Trigger** | Implemented (static webhook)                                               | –                                |
-| **Link Shortener**    | Implemented (links, domains, groups, identity)                             | `Link Shortener API`             |
-| **Payrexx**           | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)    | `Payrexx API`                    |
-| **Payrexx Trigger**   | Implemented (static webhook)                                               | –                                |
-| **RaiseNow**          | Implemented (payments, supporters, subscriptions, plans, search, webhooks) | `RaiseNow API`                   |
-| **RaiseNow Trigger**  | Implemented (webhook endpoint + event subscriptions)                       | `RaiseNow API`                   |
-| **Cura Fundraising**  | Implemented (inbox contact submissions)                                    | `Cura Fundraising API`           |
-| **LibraCore**         | Campaign submissions + custom API call                                     | `LibraCore Service Platform API` |
+| Node                  | Status                                                                                  | Credential                       |
+| --------------------- | --------------------------------------------------------------------------------------- | -------------------------------- |
+| **Do Counter**        | Implemented (counter, campaign, entry)                                                  | `Do Counter API`                 |
+| **Flyertool**         | Implemented (contacts, assignments, addresses)                                          | `Flyertool API`                  |
+| **Flyertool Trigger** | Implemented (static webhook)                                                            | –                                |
+| **Link Shortener**    | Implemented (links, domains, groups, identity)                                          | `Link Shortener API`             |
+| **Payrexx**           | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)                 | `Payrexx API`                    |
+| **Payrexx Trigger**   | Implemented (static webhook)                                                            | –                                |
+| **RaiseNow**          | Implemented (payments, supporters, subscriptions, plans, search, webhooks)              | `RaiseNow API`                   |
+| **RaiseNow Trigger**  | Implemented (webhook endpoint + event subscriptions)                                    | `RaiseNow API`                   |
+| **Cura Fundraising**  | Implemented (inbox contact submissions)                                                 | `Cura Fundraising API`           |
+| **LibraCore**         | Campaign submissions + custom API call                                                  | `LibraCore Service Platform API` |
+| **Funtrade**          | Implemented (people, addresses, attributes, interactions, pledges, publications, tasks) | `Funtrade API`                   |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -54,6 +55,8 @@ this repo already installed, so changes are visible after a save.
 ```
 credentials/                    one <Service>Api.credentials.ts per service
 icons/                          <service>.svg + <service>.dark.svg, 24x24, currentColor
+openapi/                        vendored API specs, for services that serve none
+scripts/                        maintenance scripts, e.g. refreshing a vendored spec
 nodes/
   shared/customApiCall.ts       generic "Custom API Call" resource used by every node
   shared/mergeJsonBody.ts       preSend factory folding a JSON parameter into the body
@@ -62,7 +65,8 @@ nodes/
     shared/descriptions.ts      properties reused across resources of this node
     resources/<resource>/       one folder per resource, exporting its operations
   Payrexx/  RaiseNow/  Cura/    same shape
-  shared/pagination.ts          limit/offset paging over an items or results envelope
+  shared/pagination.ts          limit/offset paging over an items or results envelope,
+                                plus a client-side limit for APIs with no paging at all
   RaiseNowTrigger/              programmatic trigger: webhook lifecycle in webhookMethods
   PayrexxTrigger/               static webhook trigger: no lifecycle, URL pasted by hand
   LibraCore/                    shared/mergeCustomFields.ts is a preSend action
@@ -121,6 +125,9 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
   `Custom Fields` JSON parameter covers the difference until we model more.
 - **Do Counter**: the standalone `n8n-nodes-do-counter` package is superseded by this
   one and should be deprecated on npm once instances have migrated.
+- **Funtrade**: the operations are built from the OpenAPI spec, which is marked
+  pre-release (0.9.0), and are not yet exercised against a live instance. The Events
+  half of the API is not modelled, and there is no trigger node — see below.
 
 ## Link Shortener notes
 
@@ -347,6 +354,92 @@ is editable) with the contact and consent fields the platform accepts:
 `einwilligung_timestamp`, `einwilligung_ip`, `einwilligung_url`. Campaign-specific
 keys — the `mzr_*` fields of the Mietzinsrechner, for instance — go into the
 **Custom Fields** JSON parameter and are merged into the body as-is.
+
+## Funtrade notes
+
+[funtrade](https://www.funtrade.ch) is the CRM, fundraising and accounting system by
+Arenae Consulting, used by Swiss NGOs for membership and donor management. The
+end-user handbook is at `https://docs.funtrade.ch/<version>/`; the REST API has its
+own ReDoc page at [app.funtrade.ch/api/](https://app.funtrade.ch/api/), which is
+where the operations here come from.
+
+That page embeds its OpenAPI document in a `__redoc_state` assignment rather than
+linking one, so there is no spec URL to fetch. The document is checked in at
+`openapi/funtrade.json` instead — it is what `nodes/Funtrade` was built against, and
+having it in the tree is what makes a field name or an enum verifiable without
+re-reading a 1 MB page. Refresh it with:
+
+```bash
+node scripts/fetch-funtrade-spec.mjs
+```
+
+and diff the result: a change there is the signal that an operation, a field or an
+enum moved. The spec is marked pre-release (`0.9.0`) and the copy here was generated
+by funtrade on 2026-01-05, so expect it to.
+
+API keys are not self-service: they are requested from the assigned funtrade support
+contact. The key goes in the `apikey` header (the API also accepts it as a query
+parameter; the credential uses the header so it stays out of logs).
+
+The node covers the CRM half of the API — a person and everything hanging off it:
+
+| Resource        | Operations                                                |
+| --------------- | --------------------------------------------------------- |
+| **Person**      | Create, Delete, Get, Search, Update                       |
+| **Address**     | Create, Delete, Get Many, Update                          |
+| **Attribute**   | Create, Delete, Get Many, Update                          |
+| **Interaction** | Create, Delete, Get Many, Record Refusal, Record Response |
+| **Pledge**      | Create, Delete, Exit, Get Many, Update                    |
+| **Publication** | Get Many, Update                                          |
+| **Task**        | Create, Get Many, Update                                  |
+
+The Events half (`/api/v1.0/eventsapi/`) is not modelled and is reachable through
+Custom API Call.
+
+### Two things shape every write
+
+**Data quality checks.** The API reuses the business logic behind the funtrade user
+interface, so its data-validity checks apply here too: the ZIP has to exist, the
+street has to exist at that ZIP, the house number in that street. A failing check
+comes back as a `400` with a `validationErrors` list naming the field. Usually the
+right answer is to correct the data; where it is not, each resource has a **Data
+Quality Overrides** collection holding that endpoint's `qc_` flags, which overrule a
+single check for a single write.
+
+**Concurrent mutation check.** Every update has to carry the `version` the record
+had when it was read, and funtrade rejects the write if someone changed the record
+in the meantime. So an update is always read-then-write: take **Version** from the
+record the Get operation returned. The one exception is Publication → Update, whose
+schema has no version field.
+
+### Other things worth knowing
+
+- **Nothing pages.** Search and every Get Many answer with the full list. Return All
+  is therefore on by default, and Limit trims the response after it arrives rather
+  than asking the API for less.
+- **Codes come from the instance.** Salutations, titles, languages, address types,
+  channels, attributes, task types and the rest are configured per instance, so
+  those fields are dropdowns filled from the reference endpoints under `/crmapi/`
+  rather than hardcoded lists.
+- **Pledge is wide.** `PersonPledge` has around seventy fields, most of them
+  maintained by funtrade itself. The node models the ones a workflow sets when it
+  books a pledge; the rest go through **Additional Fields**, including the credit
+  card fields, which are deliberately left out of the typed UI.
+- **Ending a pledge**: Delete removes the record, **Exit** keeps it and records that
+  the person left. Exit is almost always the one you want. Its `action` codes
+  (`ACTION_S`, `ACTION_L`) are documented by the API without saying what each means —
+  worth confirming with funtrade support before wiring into a live workflow.
+- **Task field names differ between create and update** — `emai_list` vs `emailList`,
+  `time_unit` vs `unit`, `description` vs `text`. Those are the API's spellings; each
+  operation sends the one its own endpoint expects.
+
+### No trigger node
+
+funtrade webhooks are generic inbound receivers: you define one in funtrade, it
+generates an endpoint under `/webhooks/v1.0/data/...`, and anything posted there is
+queued for asynchronous processing. They deliver _into_ funtrade rather than out of
+it, and there is no API to register one — so there is nothing for a trigger node to
+subscribe to, the way the Payrexx and RaiseNow triggers do.
 
 ## License
 

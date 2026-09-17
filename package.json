@@ -13,6 +13,7 @@
     "libracore",
     "flyertool",
     "link-shortener",
+    "funtrade",
     "fundraising"
   ],
   "publishConfig": {
@@ -56,7 +57,8 @@
       "dist/credentials/CuraApi.credentials.js",
       "dist/credentials/LibraCoreApi.credentials.js",
       "dist/credentials/FlyertoolApi.credentials.js",
-      "dist/credentials/LinkShortenerApi.credentials.js"
+      "dist/credentials/LinkShortenerApi.credentials.js",
+      "dist/credentials/FuntradeApi.credentials.js"
     ],
     "nodes": [
       "dist/nodes/DoCounter/DoCounter.node.js",
@@ -68,7 +70,8 @@
       "dist/nodes/LibraCore/LibraCore.node.js",
       "dist/nodes/Flyertool/Flyertool.node.js",
       "dist/nodes/FlyertoolTrigger/FlyertoolTrigger.node.js",
-      "dist/nodes/LinkShortener/LinkShortener.node.js"
+      "dist/nodes/LinkShortener/LinkShortener.node.js",
+      "dist/nodes/Funtrade/Funtrade.node.js"
     ]
   },
   "devDependencies": {

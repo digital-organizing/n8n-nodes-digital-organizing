@@ -60,3 +60,37 @@ export function listOutput(rootProperty: string): Pick<INodePropertyRouting, 'ou
 		},
 	};
 }
+
+/**
+ * Return All / Limit for an endpoint that has no paging at all and always answers
+ * with the full list. The cap is applied to the response after it arrives, so it
+ * saves the workflow from the rows, not the API from the work.
+ */
+export function clientLimitProperties(resource: string, operation = 'getAll'): INodeProperties[] {
+	const show = { resource: [resource], operation: [operation] };
+
+	return [
+		{
+			displayName: 'Return All',
+			name: 'returnAll',
+			type: 'boolean',
+			default: true,
+			description: 'Whether to return all results or only up to a given limit',
+			displayOptions: { show },
+		},
+		{
+			displayName: 'Limit',
+			name: 'limit',
+			type: 'number',
+			default: 50,
+			typeOptions: { minValue: 1 },
+			description: 'Max number of results to return',
+			displayOptions: { show: { ...show, returnAll: [false] } },
+			routing: {
+				output: {
+					postReceive: [{ type: 'limit', properties: { maxResults: '={{ $value }}' } }],
+				},
+			},
+		},
+	];
+}

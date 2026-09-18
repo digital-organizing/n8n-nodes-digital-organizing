@@ -22,6 +22,11 @@ export const counterDescription: INodeProperties[] = [
 						method: 'POST',
 						url: '/api/counter/counters',
 					},
+					send: {
+						type: 'body',
+						property: 'slug',
+						value: '={{$parameter.slug}}',
+					},
 				},
 			},
 			{
@@ -65,12 +70,21 @@ export const counterDescription: INodeProperties[] = [
 		],
 		default: 'increment',
 	},
+	{
+		...slugProperty,
+		displayOptions: {
+			show: {
+				resource: ['counter'],
+			},
+		},
+	},
 	// Parameters for Create
 	{
 		displayName: 'Name',
 		name: 'name',
 		type: 'string',
 		default: '',
+		required: true,
 		displayOptions: {
 			show: {
 				resource: ['counter'],
@@ -81,21 +95,6 @@ export const counterDescription: INodeProperties[] = [
 			send: {
 				type: 'body',
 				property: 'name',
-			},
-		},
-	},
-	{
-		...slugProperty,
-		displayOptions: {
-			show: {
-				resource: ['counter'],
-				operation: ['create', 'get', 'increment', 'update'],
-			},
-		},
-		routing: {
-			send: {
-				type: 'body',
-				property: 'slug',
 			},
 		},
 	},
@@ -122,10 +121,11 @@ export const counterDescription: INodeProperties[] = [
 		name: 'base',
 		type: 'number',
 		default: 0,
+		description: 'Offset that is added to the raw count when the counter is read',
 		displayOptions: {
 			show: {
 				resource: ['counter'],
-				operation: ['create', 'update'],
+				operation: ['create'],
 			},
 		},
 		routing: {
@@ -135,12 +135,13 @@ export const counterDescription: INodeProperties[] = [
 			},
 		},
 	},
+	// Key: part of the body on create, part of the query string on increment
 	{
 		...keyProperty,
 		displayOptions: {
 			show: {
 				resource: ['counter'],
-				operation: ['create', 'increment', 'update'],
+				operation: ['create', 'increment'],
 			},
 		},
 		routing: {
@@ -150,41 +151,105 @@ export const counterDescription: INodeProperties[] = [
 			},
 		},
 	},
-	// Parameters for Update
+	// Parameters for Increment
 	{
-		displayName: 'New Name',
-		name: 'newName',
-		type: 'string',
-		default: '',
+		displayName: 'Increment By',
+		name: 'increment',
+		type: 'number',
+		default: 1,
+		description: 'How much to add to the counter',
 		displayOptions: {
 			show: {
 				resource: ['counter'],
-				operation: ['update'],
+				operation: ['increment'],
 			},
 		},
 		routing: {
 			send: {
-				type: 'body',
-				property: 'name',
+				type: 'query',
+				property: 'increment',
 			},
 		},
 	},
+	// Parameters for Update: only the fields that are set are sent, so an update
+	// never resets values the user did not touch
 	{
-		displayName: 'New Count',
-		name: 'newCount',
-		type: 'number',
-		default: 0,
+		displayName: 'Update Fields',
+		name: 'updateFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
 		displayOptions: {
 			show: {
 				resource: ['counter'],
 				operation: ['update'],
 			},
 		},
-		routing: {
-			send: {
-				type: 'body',
-				property: 'count',
+		options: [
+			{
+				displayName: 'Base',
+				name: 'base',
+				type: 'number',
+				default: 0,
+				description: 'Offset that is added to the raw count when the counter is read',
+				routing: {
+					send: {
+						type: 'body',
+						property: 'base',
+					},
+				},
 			},
-		},
+			{
+				displayName: 'Count',
+				name: 'count',
+				type: 'number',
+				default: 0,
+				description: 'Set the raw count to this value',
+				routing: {
+					send: {
+						type: 'body',
+						property: 'count',
+					},
+				},
+			},
+			{
+				displayName: 'Key',
+				name: 'key',
+				type: 'string',
+				default: '',
+				description: 'Replace the secret key of the counter',
+				routing: {
+					send: {
+						type: 'body',
+						property: 'key',
+					},
+				},
+			},
+			{
+				displayName: 'Name',
+				name: 'name',
+				type: 'string',
+				default: '',
+				routing: {
+					send: {
+						type: 'body',
+						property: 'name',
+					},
+				},
+			},
+			{
+				displayName: 'New Slug',
+				name: 'slug',
+				type: 'string',
+				default: '',
+				description: 'Rename the slug of the counter',
+				routing: {
+					send: {
+						type: 'body',
+						property: 'slug',
+					},
+				},
+			},
+		],
 	},
 ];

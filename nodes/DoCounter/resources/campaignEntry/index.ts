@@ -1,6 +1,15 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { slugProperty, keyProperty } from '../../shared/descriptions';
 
+// The entry endpoints expect the payload as the raw JSON body (an object for
+// create/update, an array of IDs for batch publish), which declarative routing
+// can only build through `request.body`.
+const dataExpression =
+	'={{ typeof $parameter.data === "string" ? JSON.parse($parameter.data) : $parameter.data }}';
+
+const entryIdsExpression =
+	'={{ typeof $parameter.entryIds === "string" ? $parameter.entryIds.split(",").map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id)) : $parameter.entryIds }}';
+
 export const campaignEntryDescription: INodeProperties[] = [
 	{
 		displayName: 'Operation',
@@ -21,11 +30,7 @@ export const campaignEntryDescription: INodeProperties[] = [
 					request: {
 						method: 'POST',
 						url: '=/api/counter/campaigns/{{$parameter.slug}}/entries/batch-publish',
-					},
-					send: {
-						type: 'query',
-						property: 'key',
-						value: '={{$parameter.key}}',
+						body: entryIdsExpression,
 					},
 				},
 			},
@@ -36,12 +41,12 @@ export const campaignEntryDescription: INodeProperties[] = [
 				routing: {
 					request: {
 						method: 'POST',
-						url: '=/api/counter/campaigns/{{$parameter.slug}}/entries',
+						url: '=/api/counter/campaign/{{$parameter.slug}}/entries',
 					},
 					send: {
-						type: 'query',
-						property: 'key',
-						value: '={{$parameter.key}}',
+						type: 'body',
+						property: 'data',
+						value: dataExpression,
 					},
 				},
 			},
@@ -52,12 +57,7 @@ export const campaignEntryDescription: INodeProperties[] = [
 				routing: {
 					request: {
 						method: 'GET',
-						url: '=/api/counter/campaigns/{{$parameter.slug}}/entries',
-					},
-					send: {
-						type: 'query',
-						property: 'key',
-						value: '={{$parameter.key}}',
+						url: '=/api/counter/campaign/{{$parameter.slug}}/entries',
 					},
 				},
 			},
@@ -68,12 +68,7 @@ export const campaignEntryDescription: INodeProperties[] = [
 				routing: {
 					request: {
 						method: 'POST',
-						url: '=/api/counter/campaigns/{{$parameter.slug}}/entries/{{$parameter.entryId}}/toggle',
-					},
-					send: {
-						type: 'query',
-						property: 'key',
-						value: '={{$parameter.key}}',
+						url: '=/api/counter/campaign/{{$parameter.slug}}/entries/{{$parameter.entryId}}/toggle',
 					},
 				},
 			},
@@ -84,12 +79,8 @@ export const campaignEntryDescription: INodeProperties[] = [
 				routing: {
 					request: {
 						method: 'POST',
-						url: '=/api/counter/campaigns/{{$parameter.slug}}/entries/{{$parameter.entryId}}/update',
-					},
-					send: {
-						type: 'query',
-						property: 'key',
-						value: '={{$parameter.key}}',
+						url: '=/api/counter/campaign/{{$parameter.slug}}/entries/{{$parameter.entryId}}/update',
+						body: dataExpression,
 					},
 				},
 			},
@@ -104,6 +95,7 @@ export const campaignEntryDescription: INodeProperties[] = [
 			},
 		},
 	},
+	// Every entry endpoint authenticates with the campaign key as a query parameter
 	{
 		...keyProperty,
 		displayOptions: {
@@ -111,12 +103,19 @@ export const campaignEntryDescription: INodeProperties[] = [
 				resource: ['campaignEntry'],
 			},
 		},
+		routing: {
+			send: {
+				type: 'query',
+				property: 'key',
+			},
+		},
 	},
 	{
 		displayName: 'Entry ID',
 		name: 'entryId',
-		type: 'string',
-		default: '',
+		type: 'number',
+		default: 0,
+		required: true,
 		displayOptions: {
 			show: {
 				resource: ['campaignEntry'],
@@ -129,16 +128,11 @@ export const campaignEntryDescription: INodeProperties[] = [
 		name: 'data',
 		type: 'json',
 		default: '{}',
+		description: 'The entry fields as a JSON object',
 		displayOptions: {
 			show: {
 				resource: ['campaignEntry'],
 				operation: ['create', 'update'],
-			},
-		},
-		routing: {
-			send: {
-				type: 'body',
-				property: 'data',
 			},
 		},
 	},
@@ -152,12 +146,6 @@ export const campaignEntryDescription: INodeProperties[] = [
 			show: {
 				resource: ['campaignEntry'],
 				operation: ['batchPublish'],
-			},
-		},
-		routing: {
-			send: {
-				type: 'body',
-				value: '={{$value.split(",").map(id => parseInt(id.trim(), 10))}}',
 			},
 		},
 	},
@@ -188,6 +176,10 @@ export const campaignEntryDescription: INodeProperties[] = [
 		name: 'offset',
 		type: 'number',
 		default: 0,
+		description: 'Number of entries to skip',
+		typeOptions: {
+			minValue: 0,
+		},
 		displayOptions: {
 			show: {
 				resource: ['campaignEntry'],

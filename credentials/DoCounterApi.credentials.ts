@@ -21,7 +21,8 @@ export class DoCounterApi implements ICredentialType {
 			name: 'apiUrl',
 			type: 'string',
 			default: '',
-			placeholder: 'https://api.example.com',
+			description: 'Base URL of the Do Counter instance, without a trailing slash',
+			placeholder: 'https://counter.d-o.li',
 			required: true,
 		},
 		{
@@ -31,6 +32,8 @@ export class DoCounterApi implements ICredentialType {
 			typeOptions: { password: true },
 			default: '',
 			required: true,
+			description:
+				'Sent as the X-API-Key header on the endpoints that create or update counters and campaigns',
 		},
 	];
 
@@ -38,20 +41,19 @@ export class DoCounterApi implements ICredentialType {
 		type: 'generic',
 		properties: {
 			headers: {
-				'X-Api-Key': '={{$credentials?.apiKey}}',
+				'X-API-Key': '={{$credentials?.apiKey}}',
 			},
 		},
 	};
 
 	test: ICredentialTestRequest = {
+		// The API exposes no authenticated read endpoint, so the test only checks
+		// that the URL points at a Do Counter instance. Creating a counter here
+		// would fail on the unique name as soon as the test runs twice.
 		request: {
 			baseURL: '={{$credentials?.apiUrl}}',
-			url: '/api/counter/counters',
-			method: 'POST',
-			body: {
-				name: 'Test',
-				slug: 'test-ping',
-			},
+			url: '/api/openapi.json',
+			method: 'GET',
 		},
 	};
 }

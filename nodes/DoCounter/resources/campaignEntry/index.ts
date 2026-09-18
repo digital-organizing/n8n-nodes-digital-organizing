@@ -1,9 +1,13 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { slugProperty, keyProperty } from '../../shared/descriptions';
+import { listOutput, offsetListProperties } from '../../../shared/pagination';
 
-// The entry endpoints expect the payload as the raw JSON body (an object for
-// create/update, an array of IDs for batch publish), which declarative routing
-// can only build through `request.body`.
+const resource = 'campaignEntry';
+const show = { resource: [resource] };
+
+// Create and update both take the entry under a `data` key — the update handler
+// reads `payload["data"]` and ignores anything else. Batch publish is the one
+// endpoint that wants a bare JSON array, which only `request.body` can build.
 const dataExpression =
 	'={{ typeof $parameter.data === "string" ? JSON.parse($parameter.data) : $parameter.data }}';
 
@@ -16,11 +20,7 @@ export const campaignEntryDescription: INodeProperties[] = [
 		name: 'operation',
 		type: 'options',
 		noDataExpression: true,
-		displayOptions: {
-			show: {
-				resource: ['campaignEntry'],
-			},
-		},
+		displayOptions: { show },
 		options: [
 			{
 				name: 'Batch Publish',
@@ -59,6 +59,7 @@ export const campaignEntryDescription: INodeProperties[] = [
 						method: 'GET',
 						url: '=/api/counter/campaign/{{$parameter.slug}}/entries',
 					},
+					...listOutput('items'),
 				},
 			},
 			{
@@ -80,7 +81,11 @@ export const campaignEntryDescription: INodeProperties[] = [
 					request: {
 						method: 'POST',
 						url: '=/api/counter/campaign/{{$parameter.slug}}/entries/{{$parameter.entryId}}/update',
-						body: dataExpression,
+					},
+					send: {
+						type: 'body',
+						property: 'data',
+						value: dataExpression,
 					},
 				},
 			},
@@ -89,20 +94,12 @@ export const campaignEntryDescription: INodeProperties[] = [
 	},
 	{
 		...slugProperty,
-		displayOptions: {
-			show: {
-				resource: ['campaignEntry'],
-			},
-		},
+		displayOptions: { show },
 	},
 	// Every entry endpoint authenticates with the campaign key as a query parameter
 	{
 		...keyProperty,
-		displayOptions: {
-			show: {
-				resource: ['campaignEntry'],
-			},
-		},
+		displayOptions: { show },
 		routing: {
 			send: {
 				type: 'query',
@@ -117,10 +114,7 @@ export const campaignEntryDescription: INodeProperties[] = [
 		default: 0,
 		required: true,
 		displayOptions: {
-			show: {
-				resource: ['campaignEntry'],
-				operation: ['toggle', 'update'],
-			},
+			show: { ...show, operation: ['toggle', 'update'] },
 		},
 	},
 	{
@@ -128,12 +122,10 @@ export const campaignEntryDescription: INodeProperties[] = [
 		name: 'data',
 		type: 'json',
 		default: '{}',
-		description: 'The entry fields as a JSON object',
+		description:
+			'The entry fields as a JSON object. On update, only keys listed in the campaign field names are applied.',
 		displayOptions: {
-			show: {
-				resource: ['campaignEntry'],
-				operation: ['create', 'update'],
-			},
+			show: { ...show, operation: ['create', 'update'] },
 		},
 	},
 	{
@@ -143,54 +135,42 @@ export const campaignEntryDescription: INodeProperties[] = [
 		default: '',
 		description: 'Comma-separated list of entry IDs',
 		displayOptions: {
-			show: {
-				resource: ['campaignEntry'],
-				operation: ['batchPublish'],
-			},
+			show: { ...show, operation: ['batchPublish'] },
 		},
 	},
+	// ─── Get Many ──────────────────────────────────────────────────────────────
+	...offsetListProperties(resource, 'items'),
 	{
-		displayName: 'Limit',
-		name: 'limit',
-		type: 'number',
-		default: 50,
-		description: 'Max number of results to return',
-		typeOptions: {
-			minValue: 1,
-		},
+		displayName: 'Filters',
+		name: 'filters',
+		type: 'collection',
+		placeholder: 'Add Filter',
+		default: {},
 		displayOptions: {
-			show: {
-				resource: ['campaignEntry'],
-				operation: ['getAll'],
+			show: { ...show, operation: ['getAll'] },
+		},
+		options: [
+			{
+				displayName: 'Ordering',
+				name: 'ordering',
+				type: 'options',
+				options: [
+					{ name: 'Newest First', value: '-created_at' },
+					{ name: 'Oldest First', value: 'created_at' },
+					{ name: 'Published First', value: '-published' },
+					{ name: 'Unpublished First', value: 'published' },
+				],
+				default: '-created_at',
+				routing: { send: { type: 'query', property: 'ordering' } },
 			},
-		},
-		routing: {
-			send: {
-				type: 'query',
-				property: 'limit',
+			{
+				displayName: 'Published',
+				name: 'published',
+				type: 'boolean',
+				default: true,
+				description: 'Whether to return only published or only unpublished entries',
+				routing: { send: { type: 'query', property: 'published' } },
 			},
-		},
-	},
-	{
-		displayName: 'Offset',
-		name: 'offset',
-		type: 'number',
-		default: 0,
-		description: 'Number of entries to skip',
-		typeOptions: {
-			minValue: 0,
-		},
-		displayOptions: {
-			show: {
-				resource: ['campaignEntry'],
-				operation: ['getAll'],
-			},
-		},
-		routing: {
-			send: {
-				type: 'query',
-				property: 'offset',
-			},
-		},
+		],
 	},
 ];

@@ -2,6 +2,7 @@ import { NodeConnectionTypes, type INodeType, type INodeTypeDescription } from '
 import { counterDescription } from './resources/counter';
 import { campaignDescription } from './resources/campaign';
 import { campaignEntryDescription } from './resources/campaignEntry';
+import { customDescription } from './resources/custom';
 
 export class DoCounter implements INodeType {
 	description: INodeTypeDescription = {
@@ -50,12 +51,17 @@ export class DoCounter implements INodeType {
 						name: 'Counter',
 						value: 'counter',
 					},
+					{
+						name: 'Custom API Call',
+						value: 'custom',
+					},
 				],
 				default: 'counter',
 			},
 			...counterDescription,
 			...campaignDescription,
 			...campaignEntryDescription,
+			...customDescription,
 		],
 	};
 }

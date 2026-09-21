@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-digital-organizing",
   "version": "0.3.0",
-  "description": "n8n community nodes for the tools Digital Organizing works with: Payrexx, RaiseNow, Cura Fundraising and our own Do Counter",
+  "description": "n8n community nodes for the tools Digital Organizing works with: Payrexx, RaiseNow, Cura Fundraising, Gravity Forms and our own Do Counter",
   "license": "MIT",
   "homepage": "https://github.com/digital-organizing/n8n-nodes-digital-organizing",
   "keywords": [
@@ -14,6 +14,8 @@
     "flyertool",
     "link-shortener",
     "funtrade",
+    "gravity-forms",
+    "wordpress",
     "fundraising"
   ],
   "publishConfig": {
@@ -58,7 +60,8 @@
       "dist/credentials/LibraCoreApi.credentials.js",
       "dist/credentials/FlyertoolApi.credentials.js",
       "dist/credentials/LinkShortenerApi.credentials.js",
-      "dist/credentials/FuntradeApi.credentials.js"
+      "dist/credentials/FuntradeApi.credentials.js",
+      "dist/credentials/GravityFormsApi.credentials.js"
     ],
     "nodes": [
       "dist/nodes/DoCounter/DoCounter.node.js",
@@ -71,7 +74,9 @@
       "dist/nodes/Flyertool/Flyertool.node.js",
       "dist/nodes/FlyertoolTrigger/FlyertoolTrigger.node.js",
       "dist/nodes/LinkShortener/LinkShortener.node.js",
-      "dist/nodes/Funtrade/Funtrade.node.js"
+      "dist/nodes/Funtrade/Funtrade.node.js",
+      "dist/nodes/GravityForms/GravityForms.node.js",
+      "dist/nodes/GravityFormsTrigger/GravityFormsTrigger.node.js"
     ]
   },
   "devDependencies": {

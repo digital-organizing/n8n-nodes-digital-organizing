@@ -3,19 +3,21 @@
 n8n community nodes for the tools [Digital Organizing](https://digitalorganizing.ch) works with, bundled
 in one installable package instead of one package per tool.
 
-| Node                  | Status                                                                                  | Credential                       |
-| --------------------- | --------------------------------------------------------------------------------------- | -------------------------------- |
-| **Do Counter**        | Implemented (counter, campaign, entry)                                                  | `Do Counter API`                 |
-| **Flyertool**         | Implemented (contacts, assignments, addresses)                                          | `Flyertool API`                  |
-| **Flyertool Trigger** | Implemented (static webhook)                                                            | –                                |
-| **Link Shortener**    | Implemented (links, domains, groups, identity)                                          | `Link Shortener API`             |
-| **Payrexx**           | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)                 | `Payrexx API`                    |
-| **Payrexx Trigger**   | Implemented (static webhook)                                                            | –                                |
-| **RaiseNow**          | Implemented (payments, supporters, subscriptions, plans, search, webhooks)              | `RaiseNow API`                   |
-| **RaiseNow Trigger**  | Implemented (webhook endpoint + event subscriptions)                                    | `RaiseNow API`                   |
-| **Cura Fundraising**  | Implemented (inbox contact submissions)                                                 | `Cura Fundraising API`           |
-| **LibraCore**         | Campaign submissions + custom API call                                                  | `LibraCore Service Platform API` |
-| **Funtrade**          | Implemented (people, addresses, attributes, interactions, pledges, publications, tasks) | `Funtrade API`                   |
+| Node                      | Status                                                                                  | Credential                       |
+| ------------------------- | --------------------------------------------------------------------------------------- | -------------------------------- |
+| **Do Counter**            | Implemented (counter, campaign, entry)                                                  | `Do Counter API`                 |
+| **Flyertool**             | Implemented (contacts, assignments, addresses)                                          | `Flyertool API`                  |
+| **Flyertool Trigger**     | Implemented (static webhook)                                                            | –                                |
+| **Link Shortener**        | Implemented (links, domains, groups, identity)                                          | `Link Shortener API`             |
+| **Payrexx**               | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)                 | `Payrexx API`                    |
+| **Payrexx Trigger**       | Implemented (static webhook)                                                            | –                                |
+| **RaiseNow**              | Implemented (payments, supporters, subscriptions, plans, search, webhooks)              | `RaiseNow API`                   |
+| **RaiseNow Trigger**      | Implemented (webhook endpoint + event subscriptions)                                    | `RaiseNow API`                   |
+| **Cura Fundraising**      | Implemented (inbox contact submissions)                                                 | `Cura Fundraising API`           |
+| **LibraCore**             | Campaign submissions + custom API call                                                  | `LibraCore Service Platform API` |
+| **Funtrade**              | Implemented (people, addresses, attributes, interactions, pledges, publications, tasks) | `Funtrade API`                   |
+| **Gravity Forms**         | Implemented (forms, entries, submissions)                                               | `Gravity Forms API`              |
+| **Gravity Forms Trigger** | Implemented (polls for new entries)                                                     | `Gravity Forms API`              |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -69,6 +71,7 @@ nodes/
                                 plus a client-side limit for APIs with no paging at all
   RaiseNowTrigger/              programmatic trigger: webhook lifecycle in webhookMethods
   PayrexxTrigger/               static webhook trigger: no lifecycle, URL pasted by hand
+  GravityFormsTrigger/          polling trigger: poll() asks for the newest entries
   LibraCore/                    shared/mergeCustomFields.ts is a preSend action
 ```
 
@@ -128,6 +131,10 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
 - **Funtrade**: the operations are built from the OpenAPI spec, which is marked
   pre-release (0.9.0), and are not yet exercised against a live instance. The Events
   half of the API is not modelled, and there is no trigger node — see below.
+- **Gravity Forms**: the operations are built from the REST API v2 reference and are
+  not yet exercised against a live site. Feeds and results — the add-on endpoints —
+  are not modelled, and file uploads need `multipart/form-data`, which the Submission
+  resource does not send.
 
 ## Link Shortener notes
 
@@ -440,6 +447,71 @@ generates an endpoint under `/webhooks/v1.0/data/...`, and anything posted there
 queued for asynchronous processing. They deliver _into_ funtrade rather than out of
 it, and there is no API to register one — so there is nothing for a trigger node to
 subscribe to, the way the Payrexx and RaiseNow triggers do.
+
+## Gravity Forms notes
+
+Built against [REST API v2](https://docs.gravityforms.com/rest-api-v2/), which is part
+of Gravity Forms core since 2.4 and has to be switched on under _Forms → Settings →
+REST API_. There is no official n8n node and the one community package
+(`@jezweb/n8n-nodes-gravity-forms`) has a deleted repository, so this is our own.
+
+The credential takes the **site URL**, without `/wp-json`, and authenticates with HTTP
+Basic. The two halves of a Gravity Forms key pair (`ck_…` / `cs_…`) go into _Consumer
+Key_ and _Consumer Secret_ — or put a WordPress username there and an application
+password from that user's profile page. Basic Auth only works over https.
+
+- **Capabilities decide what a key may do**, because a request runs as the WordPress
+  user behind it. Reading forms needs `gravityforms_edit_forms`, reading entries
+  `gravityforms_view_entries`, writing them `gravityforms_edit_entries` — a key that
+  may read entries but not forms answers 401 on Form → Get Many.
+- **Entries are flat**, entry properties and submitted values in one object. Values are
+  keyed by field ID: `"3"` for a simple field, `"1.3"` and `"1.6"` for the first and
+  last name of a name field. Switch _Include Labels_ on to get a `_labels` map back, or
+  read the field IDs off Form → Get.
+- **Entry → Create writes straight to the database**: no validation, no notifications,
+  no add-on feeds, no confirmation. **Submission → Submit** runs the values through the
+  form the way a visitor would, and that is usually the one you want. Its values are
+  keyed by _input name_ — `input_1`, `input_4_3` — not by field ID.
+- **A failed validation is a 200.** Submission answers `is_valid: false` with
+  `validation_messages` rather than an HTTP error, so branch on that field instead of
+  expecting the node to fail. Submission → Validate runs the checks alone, without
+  storing an entry.
+- **Entry → Update replaces the whole entry.** Values you leave out are blanked out, so
+  send the entry as Get returned it, changed. The same holds for Form → Update.
+- **Delete trashes by default.** _Permanently Delete_ sets `force=1`; without it a
+  second delete of an already trashed entry answers 410.
+- **Searching is one `search` parameter**, a JSON object the node assembles from the
+  _Filters_ collection. _Field Filters_ take a field ID or an entry property as the key
+  — `date_created`, `payment_status` — and Form → Get Field Filters lists what a given
+  form accepts. _Start Date_ and _End Date_ bound `date_created`; they are not in the
+  REST reference but are part of the search criteria the endpoint passes down.
+- **Lists page with `paging[page_size]` and `paging[offset]`** and answer
+  `{"total_count": n, "entries": [...]}`. The node unwraps `entries`, and _Return All_
+  follows the pages.
+- **`GET /forms` answers with an object keyed by form ID**, not a list, and without
+  _Form IDs_ it carries only ID, title and entry count. The node splits that object into
+  one item per form; name the forms under _Form IDs_ to get their full definition.
+- **File uploads are not modelled.** They need `multipart/form-data` on the submissions
+  endpoint; use an HTTP Request node for those.
+
+### The trigger node
+
+Gravity Forms core has no webhooks — the Webhooks add-on is an Elite licence feature,
+and even there the URL is registered per form in the WordPress admin rather than over
+the API. So the trigger **polls**: every tick asks for the newest entries, sorted
+descending, and emits the ones it has not seen.
+
+- It compares against the **timestamp of the newest entry of the previous tick**, read
+  from the API itself rather than from the n8n clock, so a WordPress server whose time
+  is off does not cost entries.
+- The first tick after activation only sets that mark. Entries that already existed are
+  not replayed.
+- _Entry Created or Updated_ watches `date_updated` instead, and fires again every time
+  an entry is edited.
+- One tick drains at most 1000 entries, ten pages of 100. A larger backlog is picked up
+  by the ticks after it.
+- If the site does run the Webhooks add-on, point it at a plain Webhook node instead —
+  that delivers on submission rather than on the next tick.
 
 ## License
 

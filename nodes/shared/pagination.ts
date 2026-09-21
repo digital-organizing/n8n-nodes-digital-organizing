@@ -7,8 +7,15 @@ import type { INodePropertyRouting, INodeProperties } from 'n8n-workflow';
  * Both halves need the envelope key: the paginator to know how many rows a page
  * returned, and the output extraction to hand the workflow the rows themselves.
  */
-export function offsetListProperties(resource: string, rootProperty: string): INodeProperties[] {
+export function offsetListProperties(
+	resource: string,
+	rootProperty: string,
+	parameters: { limitParameter?: string; offsetParameter?: string } = {},
+): INodeProperties[] {
 	const show = { resource: [resource], operation: ['getAll'] };
+	// Most of these APIs take plain `limit` and `offset`; Gravity Forms nests them
+	// in a `paging` array instead.
+	const { limitParameter = 'limit', offsetParameter = 'offset' } = parameters;
 
 	return [
 		{
@@ -23,8 +30,8 @@ export function offsetListProperties(resource: string, rootProperty: string): IN
 					pagination: {
 						type: 'offset',
 						properties: {
-							limitParameter: 'limit',
-							offsetParameter: 'offset',
+							limitParameter,
+							offsetParameter,
 							pageSize: 100,
 							rootProperty,
 							type: 'query',
@@ -42,7 +49,7 @@ export function offsetListProperties(resource: string, rootProperty: string): IN
 			typeOptions: { minValue: 1 },
 			description: 'Max number of results to return',
 			displayOptions: { show: { ...show, returnAll: [false] } },
-			routing: { send: { type: 'query', property: 'limit' } },
+			routing: { send: { type: 'query', property: limitParameter } },
 		},
 	];
 }

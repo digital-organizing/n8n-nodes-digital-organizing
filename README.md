@@ -18,6 +18,7 @@ in one installable package instead of one package per tool.
 | **Funtrade**              | Implemented (people, addresses, attributes, interactions, pledges, publications, tasks) | `Funtrade API`                   |
 | **Gravity Forms**         | Implemented (forms, entries, submissions)                                               | `Gravity Forms API`              |
 | **Gravity Forms Trigger** | Implemented (polls for new entries)                                                     | `Gravity Forms API`              |
+| **cevAPI**                | Implemented (ask, route with one output per option)                                     | `cevAPI API`                     |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -73,6 +74,7 @@ nodes/
   PayrexxTrigger/               static webhook trigger: no lifecycle, URL pasted by hand
   GravityFormsTrigger/          polling trigger: poll() asks for the newest entries
   LibraCore/                    shared/mergeCustomFields.ts is a preSend action
+  Cevapi/                       programmatic: Route builds one output per option
 ```
 
 Nodes are written in n8n's **declarative style**: operations describe their HTTP
@@ -512,6 +514,50 @@ descending, and emits the ones it has not seen.
   by the ticks after it.
 - If the site does run the Webhooks add-on, point it at a plain Webhook node instead —
   that delivers on submission rather than on the next tick.
+
+## cevAPI notes
+
+cevAPI is our own decision service (<https://github.com/digital-organizing/cevapi>): it
+answers typed questions about a piece of content — yes/no, one of N, a level — and
+returns a calibrated probability with every answer. It writes no text, so a decision
+takes a few hundred milliseconds instead of an LLM call, and the answer is always one
+of the values you defined.
+
+The credential holds the instance's base URL and the token from its `CEVAPI_TOKEN`.
+An instance started without that variable takes any request, so the key may stay empty.
+
+### Ask vs Route
+
+**Ask** answers one or more questions and writes them into the item, under `cevapi`
+by default:
+
+```
+{"cevapi": {"route": {"type": "choice", "value": "billing", "confidence": 0.89, "margin": 0.82},
+             "urgent": {"type": "bool", "value": true, "confidence": 0.6}}}
+```
+
+**Route** is the same call plus the branching: the node gets **one output per option**,
+so it replaces an Ask followed by a Switch. Options can be defined in the node (label
+plus an English criterion each) or taken from a profile on the server, in which case
+the labels are listed here to fix their order. Two optional outputs:
+
+- **Fallback** — no option reached _Min Score_. On without doing anything.
+- **Unsure** — the answer came back below _Min Confidence_, or the gap to the
+  runner-up was below _Min Margin_. Off by default; switch it on to send doubtful
+  items to a human or an LLM instead of down a wrong branch.
+
+Because `outputs` is computed from the parameters, this node is programmatic rather
+than declarative, and the function that builds the outputs (`resources/route.ts`) is
+serialised into an expression — it must stay self-contained: no imports, no module
+constants, plain `'main'` instead of the enum.
+
+### Writing criteria
+
+A criterion is an English sentence that is true when the option applies ("The sender
+writes about an invoice, a payment or a refund."). The content itself can be in any
+language — German and French work well. Scores are independent probabilities per
+criterion, so they do not add up to 1 across the options; `margin` is the better
+signal for "was this ambiguous?".
 
 ## License
 

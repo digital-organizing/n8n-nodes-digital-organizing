@@ -21,6 +21,8 @@ in one installable package instead of one package per tool.
 | **cevAPI**                | Implemented (ask, route with one output per option)                                     | `cevAPI API`                     |
 | **Metricool**             | Implemented (posts, analytics, best times, competitors, brands)                         | `Metricool API`                  |
 | **Metricool Trigger**     | Implemented (polls the planner for post status changes)                                 | `Metricool API`                  |
+| **Webling**               | Implemented (members, any object type, definitions, replication, transactions)          | `Webling API`                    |
+| **Webling Trigger**       | Implemented (polls the revision log for changes)                                        | `Webling API`                    |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -79,6 +81,8 @@ nodes/
   Cevapi/                       programmatic: Route builds one output per option
   Metricool/                    shared/scheduledPost.ts builds the nested post body
   MetricoolTrigger/             polling trigger: poll() diffs per-network post statuses
+  Webling/                      shared/descriptions.ts holds one CRUD shape for 25 types
+  WeblingTrigger/               polling trigger: poll() follows the revision log
 ```
 
 Nodes are written in n8n's **declarative style**: operations describe their HTTP
@@ -144,6 +148,14 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
   metric lists in the node are read out of those descriptions and will drift. Media
   uploads, the inbox, smart links, link-in-bio, reports and the agency endpoints are
   not modelled; Custom API Call reaches them.
+- **Webling**: the operations are built from the published API documentation and are
+  not yet exercised against a live account. The docs never show a `format=full` list
+  response, so whether those objects carry their own `id` is unverified — the node
+  wraps bare IDs as `{id}` and passes full objects through as they come. File and
+  image uploads go through the base64 `content` field rather than multipart, letters
+  and PDF generation are not modelled, and `/object` — which addresses fields by
+  their internal number instead of by name — is reachable only through Custom API
+  Call.
 - **Gravity Forms**: the operations are built from the REST API v2 reference and are
   not yet exercised against a live site. Feeds and results — the add-on endpoints —
   are not modelled, and file uploads need `multipart/form-data`, which the Submission
@@ -656,6 +668,90 @@ status, with `network`, `status`, `detailedStatus` and `publicUrl` lifted out of
   remembers is the set of post/network/status triples in the window, rebuilt each
   tick rather than accumulated — which bounds it, and is safe because the window only
   moves forward.
+
+## Webling notes
+
+[Webling](https://www.webling.ch) is the association management system Swiss clubs and
+NGOs run their membership, accounting and correspondence on. Each account is its own
+subdomain, so the credential takes the **root URL** (`https://yourclub.webling.ch`,
+without `/api`). The documentation is served by every instance at `/api/1` —
+<https://demo.webling.ch/api/1> is the public copy the node was built from.
+
+An administrator generates the key under **Administration → API**. It carries that
+administrator's permissions, so a key scoped to one member group sees nothing outside
+it: an empty result can mean the key is scoped too narrowly rather than that nothing
+matched. The node sends it as the `apikey` header rather than the query parameter the
+docs lead with, so it stays out of logs.
+
+### One shape, twenty-five types
+
+Webling's API is unusually uniform. Every documented object type — member, membergroup,
+debitor, entry, entrygroup, document, period, user, vat and the rest — answers the same
+five endpoints, takes the same query language and carries the same
+`{properties, parents, links}` body. So the node has two resources instead of
+twenty-five:
+
+| Resource        | Operations                                                                           |
+| --------------- | ------------------------------------------------------------------------------------ |
+| **Member**      | Create, Delete, Get, Get Many, Update — with a member group dropdown for the parents |
+| **Record**      | The same five, with the object type as a parameter                                   |
+| **Definition**  | Get (the field configuration of the account)                                         |
+| **Replication** | Get Current Revision, Get Changes Since Revision, Get Changes Since Timestamp        |
+| **Transaction** | Run (several writes as one atomic request)                                           |
+| **Account**     | Who Am I, Get Quota                                                                  |
+
+Member gets a resource of its own only because it is the one everybody reaches for.
+
+### Things to know
+
+- **There is no fixed schema.** A member's fields are configured per account and can be
+  renamed at any time — `Vorname`, `Name` and `Geburtstag` are the demo account's
+  fields, not part of the API. Writes therefore take a JSON _Properties_ object rather
+  than a field list, and **Definition → Get** is how a workflow learns what this
+  account calls things. `format=simple` is enough for names, datatypes and enum values.
+- **Lists answer with IDs**, not objects, until _Full Objects_ is on. The node wraps
+  bare IDs as `{"id": 536}` so they are usable items either way. It also folds the ID
+  back into a single **Get** — a Webling object does not carry its own ID in the body,
+  so without that a workflow loses track of what it just read.
+- **Empty is not the same as unset.** `parents: []` means "this object has no parents",
+  which Webling rejects for the types that need one. The node leaves _Properties_,
+  _Parents_ and _Links_ out of the request when you do not fill them in, so an update
+  touches only what you name.
+- **The query language is the useful part.** Property names go in backticks, and
+  special properties carry a leading `$`:
+  `member?filter=$parents.$id = 555&order=`Vorname` ASC` returns one group's members.
+  `FILTER` matches a prefix and is much faster than `CONTAINS`; `WITH` ties several
+  conditions to the same linked object.
+- **The rate limit is real**: 500 requests a minute, with a documented recommendation
+  to stay under 50. Both answers are in the node — **Replication** for reading (ask
+  what changed, not what exists) and **Transaction** for writing.
+- **Transactions are atomic and can reference themselves.** Give a request a `name` and
+  write `{{name}}` where a later one needs the ID it returned — the only way to create
+  objects that point at each other. Watch the status code, not the body: the call
+  answers with the status of the _failed_ request, so only a transaction returning 200
+  was applied in full.
+- **Files and images** are written as `{"name": "…", "content": "<base64>"}` inside
+  _Properties_, and read back as a `href` pointing at a separate download endpoint.
+
+### The trigger node
+
+Webling has no webhooks, but it has something better than the usual polling
+consolation prize: every write produces a numbered revision, and
+`/replicate/{revision}` answers exactly what changed since the one you hold. The
+trigger remembers one number. There is no window to size, no timestamp to drift, and
+no list of things already seen — nothing is emitted twice and nothing falls through a
+gap, which is not true of any clock-based trigger. A quiet tick costs one request.
+
+- **Object Types** filters what is emitted; empty watches everything.
+- **Fetch Full Objects** reads each changed object and emits it whole. That is one
+  request per changed object, capped at 200 per tick so a bulk import cannot exhaust
+  the rate limit; turn it off to emit just the ID and type.
+- **Deleted objects** are emitted with `deleted: true` and never fetched — they cannot
+  be read back.
+- A revision of **-1** means the key's permissions changed, so what it can see changed
+  too. The node re-marks from the current revision and emits nothing, rather than
+  reporting the newly visible half of the store as freshly changed.
+- The first tick after activation only records the current revision.
 
 ## License
 

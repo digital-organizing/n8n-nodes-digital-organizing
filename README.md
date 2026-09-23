@@ -23,6 +23,7 @@ in one installable package instead of one package per tool.
 | **Metricool Trigger**     | Implemented (polls the planner for post status changes)                                 | `Metricool API`                  |
 | **Webling**               | Implemented (members, any object type, definitions, replication, transactions)          | `Webling API`                    |
 | **Webling Trigger**       | Implemented (polls the revision log for changes)                                        | `Webling API`                    |
+| **Address Cleanup**       | Implemented (match one address or a whole run, index status)                            | `Address Cleanup API`            |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -83,6 +84,7 @@ nodes/
   MetricoolTrigger/             polling trigger: poll() diffs per-network post statuses
   Webling/                      shared/descriptions.ts holds one CRUD shape for 25 types
   WeblingTrigger/               polling trigger: poll() follows the revision log
+  AddressCleanup/               programmatic: Match sends a run as a few batch requests
 ```
 
 Nodes are written in n8n's **declarative style**: operations describe their HTTP
@@ -160,6 +162,11 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
   not yet exercised against a live site. Feeds and results — the add-on endpoints —
   are not modelled, and file uploads need `multipart/form-data`, which the Submission
   resource does not send.
+- **Address Cleanup**: exercised against a live instance — single and chunked matching,
+  both input modes, the options, and the 401/413/empty-row paths. The service is
+  Swiss-only, so a foreign address comes back unmatched by design rather than as a gap
+  to fill, and the node does not geocode: the coordinates are the register's own, for
+  the matched entrance.
 
 ## Link Shortener notes
 
@@ -752,6 +759,81 @@ gap, which is not true of any clock-based trigger. A quiet tick costs one reques
   too. The node re-marks from the current revision and emits nothing, rather than
   reporting the newly visible half of the store as freshly changed.
 - The first tick after activation only records the current revision.
+
+## Address Cleanup notes
+
+Address Cleanup is our own address service, chaddr
+(<https://github.com/digital-organizing/address-cleanup>): it matches a manually typed
+Swiss address against the federal building and dwelling register (GWR/MADD) and gives
+back the canonical spelling, ZIP, locality, canton, municipality, the stable
+`EGID`/`EGAID` and WGS84 coordinates — or a verdict saying why it would not commit.
+Typos, abbreviations and a dropped street type are corrected (`Bahnhofstr. 12, 8001
+Zurich`, `Palud 5, 1003 Lausanne`), and the German, French and Italian names of the same
+building resolve to the same one.
+
+The credential holds the instance's base URL and one of the keys in its
+`CHADDR_API_KEYS`, sent as `X-API-Key`. On a fresh volume the first start downloads the
+1.6 GB register and builds the index, which takes a few minutes — until it is ready the
+credential test and every match answer 503. The key is fine; the index is not there yet.
+
+### One address or thirty thousand
+
+The same operation covers both, with nothing to switch on. **Match** reads every item of
+the run, sends them to `/v1/match/batch` in chunks of _Batch Size_ (100), and writes each
+result back onto the item it came from. A run of a single item goes to `/v1/match`
+instead, so a rejected address is reported as that address rather than as a batch of one.
+
+The server is why this is worth batching: a match costs about a millisecond, so one
+request per item spends its time on HTTP rather than on addresses. Measured against a
+live instance over loopback, 300 items take 0.4 s as three requests — some 750 addresses
+a second — against less than half that at _Batch Size_ 1, and the gap widens as soon as
+the service is a network hop away. Keep _Batch Size_ under the server's
+`CHADDR_MAX_BATCH` (1000) — a larger batch is rejected with `413`, reported as
+_batch of 1001 exceeds the server limit of 1000_.
+
+Address the node from **One Field** (the whole address in one string, split by the
+server) or from **Separate Fields**, which skips the parser and is the better choice when
+the source already has separate columns.
+
+### What lands on the item
+
+The best candidate, flattened, under _Output Key_ (`cleaned`; empty writes it at the top
+level), next to the fields the item already had:
+
+```
+{"cleaned": {"verdict": "exact", "matched": true, "score": 1.0,
+             "street": "Bahnhofstrasse", "houseNumber": "12", "zip": "8001",
+             "locality": "Zürich", "canton": "ZH", "municipality": "Zürich",
+             "municipalityNumber": 261, "egid": 2372894, "egaid": 101169008,
+             "edid": 0, "lat": 47.3682159, "lon": 8.5400088,
+             "components": {"street": 1.0, "locality": 1.0, "house_number": 1.0}}}
+```
+
+The keys are the same whether or not anything matched — an unmatched item carries them
+all as `null` — so a mapping downstream does not break on the rows that need attention.
+
+`matched` is true for the verdicts `exact` and `match` (confident after correcting a typo
+or an abbreviation), false for `candidate` (plausible but unconfirmed), `po_box` and
+`no_match`. It is the field to branch an IF on. `components` says _why_ something scored
+low: a wrong house number on the right street looks nothing like a wrong street, and only
+the second one means the address is unusable.
+
+Options worth knowing:
+
+- **Include Candidates** adds the whole scored list under `candidates`, for a human or an
+  LLM to choose from. **Include Parsed Address** adds how the server read the input, which
+  explains a surprising match.
+- **Minimum Score** (0.5) drops weaker candidates, **Candidates** caps how many come back.
+- Because one request covers many items, the options are read **once, from the first
+  item**. An expression in them that varies per item will not vary — per-item values
+  belong in the address fields, which are read per item.
+
+### Index
+
+**Index → Get Status** returns the index statistics, the server's effective limits and the
+state of the last refresh, including its error. The register re-fetches itself every 7
+days; a scheduled workflow on this operation is how you find out that it stopped, rather
+than noticing months later that the newest streets are missing.
 
 ## License
 

@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-digital-organizing",
   "version": "0.7.0",
-  "description": "n8n community nodes for the tools Digital Organizing works with: Payrexx, RaiseNow, Cura Fundraising, Gravity Forms, Metricool, Webling and our own Do Counter and cevAPI",
+  "description": "n8n community nodes for the tools Digital Organizing works with: Payrexx, RaiseNow, Cura Fundraising, Gravity Forms, Metricool, Webling and our own Do Counter, cevAPI and Address Cleanup",
   "license": "MIT",
   "homepage": "https://github.com/digital-organizing/n8n-nodes-digital-organizing",
   "keywords": [
@@ -26,7 +26,11 @@
     "analytics",
     "webling",
     "membership",
-    "association"
+    "association",
+    "address",
+    "address-validation",
+    "geocoding",
+    "switzerland"
   ],
   "publishConfig": {
     "access": "public",
@@ -74,7 +78,8 @@
       "dist/credentials/GravityFormsApi.credentials.js",
       "dist/credentials/CevapiApi.credentials.js",
       "dist/credentials/MetricoolApi.credentials.js",
-      "dist/credentials/WeblingApi.credentials.js"
+      "dist/credentials/WeblingApi.credentials.js",
+      "dist/credentials/AddressCleanupApi.credentials.js"
     ],
     "nodes": [
       "dist/nodes/DoCounter/DoCounter.node.js",
@@ -94,7 +99,8 @@
       "dist/nodes/Metricool/Metricool.node.js",
       "dist/nodes/MetricoolTrigger/MetricoolTrigger.node.js",
       "dist/nodes/Webling/Webling.node.js",
-      "dist/nodes/WeblingTrigger/WeblingTrigger.node.js"
+      "dist/nodes/WeblingTrigger/WeblingTrigger.node.js",
+      "dist/nodes/AddressCleanup/AddressCleanup.node.js"
     ]
   },
   "devDependencies": {

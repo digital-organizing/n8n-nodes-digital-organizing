@@ -73,8 +73,14 @@ export function listOutput(rootProperty: string): Pick<INodePropertyRouting, 'ou
  * with the full list. The cap is applied to the response after it arrives, so it
  * saves the workflow from the rows, not the API from the work.
  */
-export function clientLimitProperties(resource: string, operation = 'getAll'): INodeProperties[] {
-	const show = { resource: [resource], operation: [operation] };
+export function clientLimitProperties(
+	resource: string,
+	operation: string | string[] = 'getAll',
+): INodeProperties[] {
+	const show = {
+		resource: [resource],
+		operation: Array.isArray(operation) ? operation : [operation],
+	};
 
 	return [
 		{

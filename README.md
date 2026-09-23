@@ -19,6 +19,8 @@ in one installable package instead of one package per tool.
 | **Gravity Forms**         | Implemented (forms, entries, submissions)                                               | `Gravity Forms API`              |
 | **Gravity Forms Trigger** | Implemented (polls for new entries)                                                     | `Gravity Forms API`              |
 | **cevAPI**                | Implemented (ask, route with one output per option)                                     | `cevAPI API`                     |
+| **Metricool**             | Implemented (posts, analytics, best times, competitors, brands)                         | `Metricool API`                  |
+| **Metricool Trigger**     | Implemented (polls the planner for post status changes)                                 | `Metricool API`                  |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -75,6 +77,8 @@ nodes/
   GravityFormsTrigger/          polling trigger: poll() asks for the newest entries
   LibraCore/                    shared/mergeCustomFields.ts is a preSend action
   Cevapi/                       programmatic: Route builds one output per option
+  Metricool/                    shared/scheduledPost.ts builds the nested post body
+  MetricoolTrigger/             polling trigger: poll() diffs per-network post statuses
 ```
 
 Nodes are written in n8n's **declarative style**: operations describe their HTTP
@@ -133,6 +137,13 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
 - **Funtrade**: the operations are built from the OpenAPI spec, which is marked
   pre-release (0.9.0), and are not yet exercised against a live instance. The Events
   half of the API is not modelled, and there is no trigger node — see below.
+- **Metricool**: the operations are built from the OpenAPI spec and are not yet
+  exercised against a live account. The spec is the whole product's backend rather
+  than a published contract — it declares no security scheme, types most values as
+  plain strings and documents the accepted ones only in prose — so the network and
+  metric lists in the node are read out of those descriptions and will drift. Media
+  uploads, the inbox, smart links, link-in-bio, reports and the agency endpoints are
+  not modelled; Custom API Call reaches them.
 - **Gravity Forms**: the operations are built from the REST API v2 reference and are
   not yet exercised against a live site. Feeds and results — the add-on endpoints —
   are not modelled, and file uploads need `multipart/form-data`, which the Submission
@@ -558,6 +569,93 @@ writes about an invoice, a payment or a refund."). The content itself can be in 
 language — German and French work well. Scores are independent probabilities per
 criterion, so they do not add up to 1 across the options; `margin` is the better
 signal for "was this ambiguous?".
+
+## Metricool notes
+
+[Metricool](https://metricool.com) schedules and measures social media across the
+networks a brand publishes on. Its API serves its own web app and is published as
+an OpenAPI document at <https://app.metricool.com/api/swagger.json> — some 540
+paths, most of which exist for the front end rather than for callers. It is fetched
+live rather than vendored here, since unlike funtrade it has a stable spec URL.
+
+The node models the part a workflow has a reason to reach for:
+
+| Resource       | Operations                                               |
+| -------------- | -------------------------------------------------------- |
+| **Post**       | Create, Delete, Get, Get Many, Reschedule, Update        |
+| **Analytics**  | Get Aggregate, Get Distribution, Get Posts, Get Timeline |
+| **Best Time**  | Get                                                      |
+| **Brand**      | Get, Get Many                                            |
+| **Competitor** | Create, Delete, Get Many                                 |
+
+### Authentication and the brand
+
+Three values identify a caller. Two are the credential, because they never change:
+
+- **User Token** — the secret, from Account Settings → API in the web app. The node
+  sends it as the `X-Mc-Auth` header rather than the `userToken` query parameter the
+  docs lead with, so it stays out of logs.
+- **User ID** — the account it belongs to, shown next to the token. It has no header
+  form and rides the query string.
+
+The third, `blogId`, is a node parameter: one account manages many brands, and which
+one an operation means is a per-call decision. The node calls it **Brand** and fills
+the dropdown from the account's own list — which is also the only way to discover
+one, since the ID is otherwise visible only in the web app's URL.
+
+### Things to know
+
+- **Every answer is wrapped** in `{metadata, page, data}`. The operations unwrap
+  `data`, so a workflow sees the rows. The one exception is **Get Aggregate**, whose
+  `data` is a bare number and cannot be an item of its own — it hands back the
+  envelope.
+- **One post, many networks.** A scheduled post carries one text and a list of
+  networks, so the same message to five accounts is one call. The answer has a status
+  per network in `providers`, which is where a partial failure shows up: the post
+  succeeded, one network in it did not.
+- **Update replaces, Reschedule moves.** `PUT` overwrites the whole post, so anything
+  not sent is dropped — read it with Get first. The `PATCH` behind Reschedule accepts
+  only a new publication date, which makes it the safe way to move a post; aimed at
+  the parent of a thread it moves the thread.
+- **Dates come in two dialects.** The scheduler — publication dates, the calendar
+  window, best times — takes a naive local date-time (`2026-10-01T09:00:00`) and reads
+  it in the timezone sent alongside, or the brand's own. Analytics takes ISO 8601 with
+  an offset. The node normalises the first kind by keeping the wall clock you picked
+  and dropping the offset, so 09:00 in the picker is 09:00 in Metricool.
+- **Media is fetched, not uploaded.** Put publicly reachable URLs in _Media URLs_ and
+  Metricool downloads them; a URL behind a login will not do. The real upload path is
+  a multi-step S3 transaction and is not modelled.
+- **Network-specific settings go in _Network Data_** — `instagramData`, `tiktokData`,
+  `youtubeData` and the rest are merged into the body as-is.
+- **Metric names are per network**, long, and documented only in the prose of the
+  spec's `metric` parameter. _Subject_ narrows them to a part of the network
+  (`account`, `posts`, `reels`, `stories`) and is mandatory for Instagram.
+- **Analytics reads history.** A post published minutes ago has no numbers yet;
+  Metricool backfills on its own schedule.
+
+### The trigger node
+
+Metricool sends no webhooks — the `/webhooks` paths in its API are where TikTok and X
+deliver _to_ Metricool. So the trigger polls the planner and compares.
+
+What it compares is the per-network status inside a post rather than the post itself,
+since a post to three networks publishes three times and can fail on one while
+succeeding on the others. Each tick emits one item per network that entered a watched
+status, with `network`, `status`, `detailedStatus` and `publicUrl` lifted out of
+`providers` next to the post.
+
+- **Statuses** defaults to Published and Error — the two worth reacting to.
+- **Lookback** has to comfortably outlast the poll interval, and be long enough for
+  Metricool to have finished publishing. **Lookahead** only matters for watching
+  drafts and pending posts, which sit ahead of the clock.
+- The window is sent in **UTC** unless a timezone is set, because the endpoint reads
+  a naive window in whatever zone the query names: defaulting to the brand's own would
+  mean not knowing what was asked for, and silently missing the posts that just
+  published.
+- The first tick after activation only records what is already there. What it
+  remembers is the set of post/network/status triples in the window, rebuilt each
+  tick rather than accumulated — which bounds it, and is safe because the window only
+  moves forward.
 
 ## License
 

@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-digital-organizing",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "n8n community nodes for the tools Digital Organizing works with: Payrexx, RaiseNow, Cura Fundraising, Gravity Forms, Metricool, Webling and our own Do Counter and cevAPI",
   "license": "MIT",
   "homepage": "https://github.com/digital-organizing/n8n-nodes-digital-organizing",

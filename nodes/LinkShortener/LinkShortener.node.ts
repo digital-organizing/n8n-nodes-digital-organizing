@@ -4,6 +4,7 @@ import { domainDescription } from './resources/domain';
 import { groupDescription } from './resources/group';
 import { identityDescription } from './resources/identity';
 import { linkDescription } from './resources/link';
+import { shareDescription } from './resources/share';
 
 export class LinkShortener implements INodeType {
 	description: INodeTypeDescription = {
@@ -16,7 +17,8 @@ export class LinkShortener implements INodeType {
 		group: ['input'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Create and manage short links, their open graph metadata and their view counts',
+		description:
+			'Create and manage short links, their open graph metadata and their view counts, and short links for sharing a text on WhatsApp, Telegram and co.',
 		defaults: {
 			name: 'Link Shortener',
 		},
@@ -63,10 +65,15 @@ export class LinkShortener implements INodeType {
 						name: 'Link',
 						value: 'link',
 					},
+					{
+						name: 'Share',
+						value: 'share',
+					},
 				],
 				default: 'link',
 			},
 			...linkDescription,
+			...shareDescription,
 			...domainDescription,
 			...groupDescription,
 			...identityDescription,

@@ -8,7 +8,7 @@ in one installable package instead of one package per tool.
 | **Do Counter**            | Implemented (counter, campaign, entry)                                                  | `Do Counter API`                 |
 | **Flyertool**             | Implemented (contacts, assignments, addresses)                                          | `Flyertool API`                  |
 | **Flyertool Trigger**     | Implemented (static webhook)                                                            | –                                |
-| **Link Shortener**        | Implemented (links, domains, groups, identity)                                          | `Link Shortener API`             |
+| **Link Shortener**        | Implemented (links, shares, domains, groups, identity)                                  | `Link Shortener API`             |
 | **Payrexx**               | Implemented (transactions, subscriptions, QR codes, paylinks, invoices)                 | `Payrexx API`                    |
 | **Payrexx Trigger**       | Implemented (static webhook)                                                            | –                                |
 | **RaiseNow**              | Implemented (payments, supporters, subscriptions, plans, search, webhooks)              | `RaiseNow API`                   |
@@ -184,6 +184,14 @@ key as `Authorization: Api-Key <key>`.
 - **Domain and group are referenced by name**, not by ID — `example.com` and the
   group's name. Use the Domain and Group resources to discover what a key may use.
 - **Links are read-write, domains and groups are read-only** over the API.
+- **Share → Create** takes a text, an optional URL and a list of platforms, and
+  makes one short link per platform that redirects to the platform's share URL
+  (`wa.me/?text=…` and so on). Slugs are random, optionally behind a _Slug Prefix_:
+  `my-campaign-x3k9qa`. The output has the `links` and a `short_urls` map, so a
+  later node can use `{{$json.short_urls.whatsapp}}`. Facebook and LinkedIn can
+  only share a link and answer 400 without a URL. Updating the text or URL of a
+  share rewrites all its links. **Generate Links** returns the share URLs without
+  storing anything. Needs a link-shortener with the `/api/v1/shares/` endpoint.
 - **Slug and domain together must be unique.** A clash answers 400 with the message
   on the slug field. Leaving the slug empty generates a random one; slugs are
   lowercased before saving.

@@ -24,6 +24,8 @@ in one installable package instead of one package per tool.
 | **Webling**               | Implemented (members, any object type, definitions, replication, transactions)          | `Webling API`                    |
 | **Webling Trigger**       | Implemented (polls the revision log for changes)                                        | `Webling API`                    |
 | **Address Cleanup**       | Implemented (match one address or a whole run, index status)                            | `Address Cleanup API`            |
+| **Wissensmanagement**     | Implemented (documents, search, answers, chat sessions, jobs, prompts, webhooks)        | `Wissensmanagement API`          |
+| **Wissensmanagement Trigger** | Implemented (signed, self-verifying webhook subscription)                           | `Wissensmanagement API`          |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -85,6 +87,8 @@ nodes/
   Webling/                      shared/descriptions.ts holds one CRUD shape for 25 types
   WeblingTrigger/               polling trigger: poll() follows the revision log
   AddressCleanup/               programmatic: Match sends a run as a few batch requests
+  Wissensmanagement/            programmatic: starts background jobs and polls them to the end
+  WissensmanagementTrigger/     webhook trigger that verifies its subscription and each signature
 ```
 
 Nodes are written in n8n's **declarative style**: operations describe their HTTP
@@ -842,6 +846,122 @@ Options worth knowing:
 state of the last refresh, including its error. The register re-fetches itself every 7
 days; a scheduled workflow on this operation is how you find out that it stopped, rather
 than noticing months later that the newest streets are missing.
+
+## Wissensmanagement notes
+
+Wissensmanagement is our own knowledge base (RAG). You upload documents, and it splits
+each one into chunks and indexes them. The index then answers searches and cited AI
+questions. Every customer has their own instance, e.g. `https://ses-wissen.ai-collab.ch`,
+so the credential's **Base URL** is the root of that instance, without `/api/v1`. The
+instance serves its API reference at `/api/docs/` and the OpenAPI schema at `/api/schema/`.
+
+### API keys
+
+A staff user creates API keys in the instance's Django admin under **API keys**.
+
+- The key is shown **only once**.
+- It expires after 90 days unless another expiry was chosen.
+- It is sent as `Authorization: Bearer wm_…`.
+- It only carries the scopes picked when it was made, minus any that its owner lacks
+  permission for.
+
+The credential test calls `/me/`, which needs no scope. **Account → Get Me** shows which
+scopes and limits a key really has.
+
+| Resource               | Scopes                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Document               | `documents:read`; also `documents:create` to create, `documents:write` to update or replace the file, `documents:process` to reprocess, `documents:delete` to delete |
+| Search / Answer        | `search:run` / `answers:run`                                                                                                                |
+| Chat Session           | `chats:read`, `chats:write`                                                                                                                 |
+| Prompt                 | `prompts:read`                                                                                                                              |
+| Webhook and Trigger    | `webhooks:read`, `webhooks:write`; also `documents:read` for document events and for Fetch Resource                                         |
+
+### Jobs, waiting and idempotency
+
+Six operations do not answer right away; they start a background job instead:
+
+- Document → Create
+- Document → Replace File
+- Document → Reprocess
+- Search → Run
+- Answer → Ask
+- Chat Session → Send Message
+
+The server picks up queued jobs every 15 seconds. With **Wait for Completion** on (the
+default), the node polls the job until it finishes. It starts at 2 s and backs off to
+30 s, and it respects `Retry-After` when rate-limited. It then outputs the result:
+
+- **Document operations** output the processed document.
+- **Search** outputs one item per passage found. Turn off _Split Sources_ to get all
+  passages on one item.
+- **Answer** and **Send Message** output `answer`, `refusal`, `citations` and `sources`.
+
+A failed job fails the item with its `error_code`. A job that is still running after
+_Timeout_ (300 s) also fails the item, and the error message includes the job ID. With
+Wait for Completion off, the node outputs the queued job. You can pick it up later with
+**Job → Get**, which can wait as well, or with the trigger.
+
+Every job start sends an `Idempotency-Key`, and the API keeps each key for seven days:
+
+- The same key with the same input returns the original job instead of starting a
+  second one.
+- The same key with different input is rejected with `409`.
+
+By default the node derives the key from the execution, the node and the item. This means
+n8n's _Retry On Fail_ does not upload a document twice, but a new execution starts a new
+job. To make an ingest safe to re-run across executions, set **Options → Idempotency
+Key** to something stable, e.g. `{{ $json.fileId }}`.
+
+### Things to know
+
+- **Uploads** are sent as multipart, from the binary field. The file extension decides how
+  the file is read:
+  - PDF, DOCX, XLSX, PPTX
+  - TXT, MD, CSV, HTML
+  - common image formats, via OCR
+
+  An unknown extension is rejected with `415`. The size limit is 200 MiB. **Text** input
+  is stored as `document.txt`.
+- **Tags** are comma-separated in every field.
+- **Get Many filters.** In _Get Many_ documents, a document has to carry _all_ the tags
+  given. Status, stance and language each take a single value.
+- **Timestamp filters** are sent as UTC. A date without a time zone is read in the n8n
+  instance's time zone.
+- **Stance** means where a document's author stands relative to the customer: ally,
+  neutral or opposition. Search, Answer and Send Message can be restricted to some
+  stances and to specific document IDs.
+- **Errors** carry the API's own message and code, plus the `request_id` for the logs of
+  the instance.
+
+### The trigger node
+
+Activating the trigger does three things:
+
+1. It creates a webhook subscription for the selected events.
+2. It keeps the signing secret in the node's static data. The API shows the secret only
+   once.
+3. It asks the instance to send a test event.
+
+The instance delivers that test about 15 seconds later. The trigger answers `200` without
+starting the workflow, and the instance marks the subscription as verified and enabled.
+Deactivating the trigger deletes the subscription. A subscription on the same URL whose
+secret the node does not hold is replaced, not reused.
+
+Things to know:
+
+- **Only public HTTPS on port 443.** The instance refuses other destinations, so a
+  `localhost` or plain-HTTP n8n cannot receive events. The test URL works only when n8n
+  itself is publicly reachable.
+- **Every delivery is checked.** The trigger checks the HMAC-SHA256 signature over
+  `<timestamp>.<raw body>`, accepting either signature while a secret is being rotated.
+  It also rejects timestamps more than five minutes off, and events whose `id` does not
+  match `Webhook-Id`. A delivery that fails these checks gets `401` and starts nothing.
+- **Delivery is at least once, in no fixed order.** A failing delivery is attempted up to 8
+  times over about a day. Deduplicate on the event `id` if a double run matters.
+- **Events carry IDs, not content.** Each event looks like
+  `{id, type, created_at, data: {job_id | document_id, status, url}}`. Turn on **Fetch
+  Resource** to add the job or document under `resource`. For `job.succeeded`, that job
+  includes the answer or the sources.
 
 ## License
 

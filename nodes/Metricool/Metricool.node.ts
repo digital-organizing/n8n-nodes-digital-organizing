@@ -16,7 +16,7 @@ import { postDescription } from './resources/post';
  * (Analytics, Best Time, Competitor) and the brand list every one of them needs
  * an ID from. The rest is reachable through Custom API Call.
  *
- * Two things shape every operation here:
+ * Two things shape every operation here: 
  *
  * - **Everything is scoped to one brand.** Metricool calls it `blogId` on the
  *   wire; the node calls it Brand and fills the dropdown from the account's own

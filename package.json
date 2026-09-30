@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-digital-organizing",
   "version": "0.9.0",
-  "description": "n8n community nodes for the tools Digital Organizing works with: Payrexx, RaiseNow, Cura Fundraising, Gravity Forms, Metricool, Webling and our own Do Counter, cevAPI and Address Cleanup",
+  "description": "n8n community nodes for the tools Digital Organizing works with: Payrexx, RaiseNow, Cura Fundraising, Gravity Forms, Metricool, Webling and our own Do Counter, cevAPI, Address Cleanup and Wissensmanagement",
   "license": "MIT",
   "homepage": "https://github.com/digital-organizing/n8n-nodes-digital-organizing",
   "keywords": [
@@ -30,7 +30,10 @@
     "address",
     "address-validation",
     "geocoding",
-    "switzerland"
+    "switzerland",
+    "wissensmanagement",
+    "knowledge-base",
+    "rag"
   ],
   "publishConfig": {
     "access": "public",
@@ -56,6 +59,7 @@
     "dev": "n8n-node dev",
     "lint": "n8n-node lint",
     "lint:fix": "n8n-node lint --fix",
+    "test:wissensmanagement": "npm run build && node --test tests/wissensmanagement.test.cjs",
     "format": "prettier --write \"{credentials,nodes}/**/*.ts\"",
     "release": "n8n-node release",
     "prepublishOnly": "n8n-node prerelease"
@@ -79,7 +83,8 @@
       "dist/credentials/CevapiApi.credentials.js",
       "dist/credentials/MetricoolApi.credentials.js",
       "dist/credentials/WeblingApi.credentials.js",
-      "dist/credentials/AddressCleanupApi.credentials.js"
+      "dist/credentials/AddressCleanupApi.credentials.js",
+      "dist/credentials/WissensmanagementApi.credentials.js"
     ],
     "nodes": [
       "dist/nodes/DoCounter/DoCounter.node.js",
@@ -100,7 +105,9 @@
       "dist/nodes/MetricoolTrigger/MetricoolTrigger.node.js",
       "dist/nodes/Webling/Webling.node.js",
       "dist/nodes/WeblingTrigger/WeblingTrigger.node.js",
-      "dist/nodes/AddressCleanup/AddressCleanup.node.js"
+      "dist/nodes/AddressCleanup/AddressCleanup.node.js",
+      "dist/nodes/Wissensmanagement/Wissensmanagement.node.js",
+      "dist/nodes/WissensmanagementTrigger/WissensmanagementTrigger.node.js"
     ]
   },
   "devDependencies": {

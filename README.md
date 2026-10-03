@@ -26,6 +26,7 @@ in one installable package instead of one package per tool.
 | **Address Cleanup**       | Implemented (match one address or a whole run, index status)                            | `Address Cleanup API`            |
 | **Wissensmanagement**     | Implemented (documents, search, answers, chat sessions, jobs, prompts, webhooks)        | `Wissensmanagement API`          |
 | **Wissensmanagement Trigger** | Implemented (signed, self-verifying webhook subscription)                           | `Wissensmanagement API`          |
+| **Template Studio**       | Implemented (render a template to an image or link, list templates)                     | `Template Studio API`            |
 
 Every node also keeps a **Custom API Call** resource, for the long tail of endpoints
 not worth modelling — see
@@ -89,6 +90,7 @@ nodes/
   AddressCleanup/               programmatic: Match sends a run as a few batch requests
   Wissensmanagement/            programmatic: starts background jobs and polls them to the end
   WissensmanagementTrigger/     webhook trigger that verifies its subscription and each signature
+  TemplateStudio/               programmatic: the fields of the chosen template feed a resource mapper
 ```
 
 Nodes are written in n8n's **declarative style**: operations describe their HTTP
@@ -171,6 +173,38 @@ One-time npm setup is documented at the top of `.github/workflows/publish.yml`
   Swiss-only, so a foreign address comes back unmatched by design rather than as a gap
   to fill, and the node does not geocode: the coordinates are the register's own, for
   the matched entrance.
+
+## Template Studio notes
+
+Built against our own Template Studio, which renders personalised images from Canva
+designs. The credential takes the **root URL**, without `/api`, and a key from the
+admin under _API → API keys_, sent as `Authorization: Bearer <key>`.
+
+- **The template list follows the key.** A key limited to certain templates only
+  lists and renders those.
+- **Fields come from the template.** After a template is picked, the resource mapper
+  shows its text and image fields; required ones are marked. Change the fields in the
+  visual editor and refresh the list in the node to pick them up. A render looks the
+  template up once per run, so auto-mapping and binary fields follow the template as
+  it is now, also when the template comes from an expression.
+- **An image field takes a URL, a base64 string or the name of a binary field** of the
+  input item, such as `data`. A binary field is sent base64 encoded in the JSON body,
+  or as a file upload with the option _Send Files as Multipart Form_, which is smaller
+  for large photos. A short value that is neither a URL nor a binary field of the item
+  fails in the node, with the binary fields the item does have.
+- **Remove Background, Crop Around Face and Fit** can be added per image field under
+  _Add field_. Left out, the template's own setting applies; the field name shows it,
+  as in _Fit (template: cover)_.
+- **A render can fail on what it reports.** The options _Fail on Text Overflow_, _Fail
+  if No Face Found_ and _Fail if Field Not in Design_ stop the workflow before a bad
+  image goes out. The image is rendered all the same; the error carries its link.
+- **Map Automatically** sends the input properties named like a field and drops the
+  rest, because the API rejects keys it does not know.
+- **Output** is the image as binary data, with its public link in `url`, or the link
+  alone for APIs that want an image URL. Links expire; `expires_at` says when.
+- Exercised against a live instance through the built node (list, fields, render to
+  file and link, multipart upload, error messages), not yet clicked through in the n8n
+  editor.
 
 ## Link Shortener notes
 

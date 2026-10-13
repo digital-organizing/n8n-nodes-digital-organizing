@@ -1,0 +1,30 @@
+{
+  "name": "Monitor Politmonitoring",
+  "nodes": [
+    {
+      "id": "event",
+      "name": "New reviews and tracked updates",
+      "type": "n8n-nodes-digital-organizing.politmonitoringTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "events": [
+          "review.created",
+          "tracked_affair.updated"
+        ],
+        "trackingScope": "all",
+        "options": {
+          "fetchResource": true
+        }
+      }
+    }
+  ],
+  "connections": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

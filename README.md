@@ -24,6 +24,8 @@ in one installable package instead of one package per tool.
 | **Webling**               | Implemented (members, any object type, definitions, replication, transactions)          | `Webling API`                    |
 | **Webling Trigger**       | Implemented (polls the revision log for changes)                                        | `Webling API`                    |
 | **Address Cleanup**       | Implemented (match one address or a whole run, index status)                            | `Address Cleanup API`            |
+| **Politmonitoring** | Implemented (Geschäfte, Themen, documents, RAG, reviews, tracking, jobs, webhooks) | `Politmonitoring API` |
+| **Politmonitoring Trigger** | Implemented (signed review, tracking, document and job events) | `Politmonitoring API` |
 | **Wissensmanagement**     | Implemented (documents, search, answers, chat sessions, jobs, prompts, webhooks)        | `Wissensmanagement API`          |
 | **Wissensmanagement Trigger** | Implemented (signed, self-verifying webhook subscription)                           | `Wissensmanagement API`          |
 | **Template Studio**       | Implemented (render a template to an image or link, list templates)                     | `Template Studio API`            |
@@ -1000,3 +1002,7 @@ Things to know:
 ## License
 
 [MIT](LICENSE.md)
+
+## Politmonitoring
+
+Use **Politmonitoring** and **Politmonitoring Trigger** with a Politmonitoring instance that has its `/api/v1/` integration API enabled. See the [node guide](docs/politmonitoring/README.md) for credentials, operations, async jobs, scope rules and trigger setup. Importable example workflows are in [examples/politmonitoring](examples/politmonitoring).

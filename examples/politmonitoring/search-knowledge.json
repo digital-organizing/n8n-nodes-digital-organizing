@@ -1,0 +1,60 @@
+{
+  "name": "Search Knowledge",
+  "nodes": [
+    {
+      "id": "start",
+      "name": "Run manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "search",
+      "name": "Search knowledge",
+      "type": "n8n-nodes-digital-organizing.politmonitoring",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "resource": "search",
+        "operation": "run",
+        "text": "Wie fördern wir die politische Beteiligung Jugendlicher?",
+        "corpora": [
+          "topics",
+          "documents"
+        ],
+        "language": "de",
+        "resultLimit": 10,
+        "generateAnswer": true,
+        "waitForCompletion": true,
+        "sourceFilters": {},
+        "options": {
+          "timeout": 300
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run manually": {
+      "main": [
+        [
+          {
+            "node": "Search knowledge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
